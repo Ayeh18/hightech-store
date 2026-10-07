@@ -1,0 +1,75 @@
+# Local development stack. See README.md for the commands.
+x-php: &php
+  build: ./docker/php
+  user: "${UID:-1000}:${GID:-1000}"
+  working_dir: /var/www/html
+  volumes:
+    - ./backend:/var/www/html
+  env_file: ./backend/.env
+  environment: &php-env
+    # Database credentials come from the root .env so they are defined once.
+    DB_CONNECTION: pgsql
+    DB_HOST: db
+    DB_PORT: 5432
+    DB_DATABASE: ${DB_DATABASE:-pc_store}
+    DB_USERNAME: ${DB_USERNAME:-pc_store}
+    DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    MAIL_HOST: mailpit
+    MAIL_PORT: 1025
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  app:
+    <<: *php
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    environment:
+      <<: *php-env
+      PHP_CLI_SERVER_WORKERS: 4
+    ports:
+      - "${APP_PORT:-8000}:8000"
+
+  queue:
+    <<: *php
+    command: php artisan queue:work --tries=3 --sleep=1
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-pc_store}
+      POSTGRES_USER: ${DB_USERNAME:-pc_store}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${DB_FORWARD_PORT:-5434}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/01-create-testing-db.sh:/docker-entrypoint-initdb.d/01-create-testing-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-pc_store} -d ${DB_DATABASE:-pc_store}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    image: node:22-bookworm-slim
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    environment:
+      VITE_API_PROXY_TARGET: http://app:8000
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      - app
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:8025:8025"
+
+volumes:
+  pgdata:
