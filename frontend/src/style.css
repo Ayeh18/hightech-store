@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+
+/* Design tokens: every colour in the UI comes from here, so the theme can change in one place. */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --color-bg: #0b0d12;
+  --color-surface: #12151c;
+  --color-elevated: #1a1e28;
+  --color-line: #262b38;
+  --color-ink: #e6e9f2;
+  --color-muted: #8a93a6;
+
+  --color-accent: #7c5cff;
+  --color-accent-hover: #6a4aee;
+  --color-accent-soft: rgb(124 92 255 / 0.14);
+
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+
+  --radius-card: 1rem;
+  --shadow-glow: 0 0 0 1px rgb(124 92 255 / 0.35), 0 12px 40px -12px rgb(124 92 255 / 0.45);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-bg font-sans text-ink antialiased;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+}
