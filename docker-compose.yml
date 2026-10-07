@@ -5,17 +5,8 @@ x-php: &php
   working_dir: /var/www/html
   volumes:
     - ./backend:/var/www/html
-  env_file: ./backend/.env
-  environment: &php-env
-    # Database credentials come from the root .env so they are defined once.
-    DB_CONNECTION: pgsql
-    DB_HOST: db
-    DB_PORT: 5432
-    DB_DATABASE: ${DB_DATABASE:-pc_store}
-    DB_USERNAME: ${DB_USERNAME:-pc_store}
-    DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
-    MAIL_HOST: mailpit
-    MAIL_PORT: 1025
+  # Laravel reads backend/.env itself. We deliberately do NOT inject its values as real
+  # environment variables: real env vars beat phpunit.xml and could point tests at the dev database.
   depends_on:
     db:
       condition: service_healthy
@@ -25,7 +16,6 @@ services:
     <<: *php
     command: php artisan serve --host=0.0.0.0 --port=8000
     environment:
-      <<: *php-env
       PHP_CLI_SERVER_WORKERS: 4
     ports:
       - "${APP_PORT:-8000}:8000"
