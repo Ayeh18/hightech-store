@@ -64,6 +64,14 @@ async function init() {
 
 onMounted(init)
 watch(() => route.params.id, init)
+
+// The "Saved as ..." message has done its job once the customer starts choosing parts for a new build.
+watch(
+  () => builder.selectedCount,
+  (count) => {
+    if (count > 0) savedName.value = ''
+  },
+)
 onBeforeUnmount(() => (choosing.value = null))
 
 function chooseFor(slot) {
@@ -100,8 +108,11 @@ async function persist(name) {
     if (saveAsNew.value) builder.detach()
     const saved = await builder.save(name)
     saveOpen.value = false
+    // The build is safely stored on the server, so give the customer a clean builder for the next one.
+    // (It stays available under "My builds" for editing.)
+    builder.clear()
     savedName.value = saved.name
-    if (route.name !== 'builder-edit') router.replace({ name: 'builder-edit', params: { id: saved.id } })
+    if (route.name === 'builder-edit') router.replace({ name: 'builder' })
   } catch (e) {
     const parsed = parseApiError(e)
     saveFieldError.value = parsed.errors.name?.[0] ?? ''
