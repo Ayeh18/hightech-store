@@ -1,6 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Cart\CartBuildController;
+use App\Http\Controllers\Api\Cart\CartController;
+use App\Http\Controllers\Api\Cart\CartItemController;
+use App\Http\Controllers\Api\Cart\CartProductController;
 use App\Http\Controllers\Api\Catalog\BrandController;
 use App\Http\Controllers\Api\Catalog\CategoryController;
 use App\Http\Controllers\Api\Catalog\InventoryController;
@@ -105,4 +109,22 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware(['auth:sanctum', 'can:compatibility.manage'])->group(function () {
     Route::get('compatibility-rules', [CompatibilityRuleController::class, 'index']);
     Route::put('compatibility-rules/{key}', [CompatibilityRuleController::class, 'update']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Cart
+|--------------------------------------------------------------------------
+| Customers only. Every response is the whole cart, re-priced and re-validated from the database.
+| A cart line belongs to one customer; anyone else gets a 404.
+*/
+
+Route::middleware('auth:sanctum')->prefix('cart')->group(function () {
+    Route::get('/', [CartController::class, 'show']);
+    Route::delete('/', [CartController::class, 'clear']);
+    Route::post('accept-prices', [CartController::class, 'acceptPrices']);
+    Route::post('products', [CartProductController::class, 'store'])->middleware('throttle:60,1');
+    Route::post('builds', [CartBuildController::class, 'store'])->middleware('throttle:30,1');
+    Route::put('items/{item}', [CartItemController::class, 'update'])->middleware('throttle:60,1');
+    Route::delete('items/{item}', [CartItemController::class, 'destroy']);
 });
