@@ -247,6 +247,7 @@ export const usePcBuilderStore = defineStore('pcBuilder', () => {
   }
 
   return {
+    selectionPayload: payload,
     slots,
     selection,
     buildId,

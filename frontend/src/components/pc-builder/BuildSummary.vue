@@ -12,14 +12,24 @@ import BuildProgress from './BuildProgress.vue'
 const props = defineProps({
   build: { type: Object, required: true },
   isLoggedIn: { type: Boolean, default: false },
+  addingToCart: { type: Boolean, default: false },
 })
-const emit = defineEmits(['save', 'clear'])
+const emit = defineEmits(['save', 'clear', 'add-to-cart'])
 
 const lines = computed(() => props.build.rows.filter((row) => row.selected))
 const lineTotal = (row) => formatSen(row.selected.product.effective_price.amount * row.selected.quantity)
 // Only problems without a slot are listed here; slot problems are shown on their own row.
 const generalIssues = computed(() => props.build.issues.filter((issue) => !issue.slot))
 const blockingCount = computed(() => props.build.blockingCount)
+
+// Why "Add build to cart" is switched off, in plain words. The server decides (complete, in stock, compatible).
+const cartHint = computed(() => {
+  if (props.build.isEmpty) return ''
+  if (props.build.purchasable) return ''
+  if (props.build.missingRequired.length) return 'Choose the required parts to add this build to your cart.'
+  if (props.build.blockingCount) return 'Fix the problems above to add this build to your cart.'
+  return 'Confirming prices…'
+})
 </script>
 
 <template>
@@ -90,7 +100,16 @@ const blockingCount = computed(() => props.build.blockingCount)
     </div>
 
     <div class="mt-5 space-y-2.5">
-      <BaseButton block :disabled="build.isEmpty" :loading="build.saving" @click="emit('save')">
+      <BaseButton
+        block
+        :disabled="!build.purchasable || addingToCart"
+        :loading="addingToCart"
+        @click="emit('add-to-cart')"
+      >
+        {{ isLoggedIn ? 'Add build to cart' : 'Log in to buy' }}
+      </BaseButton>
+      <p v-if="cartHint" class="text-center text-xs text-muted" data-testid="cart-hint">{{ cartHint }}</p>
+      <BaseButton block variant="secondary" :disabled="build.isEmpty" :loading="build.saving" @click="emit('save')">
         {{ build.buildId ? 'Save changes' : isLoggedIn ? 'Save build' : 'Log in to save' }}
       </BaseButton>
       <BaseButton block variant="ghost" :disabled="build.isEmpty" @click="emit('clear')">Start over</BaseButton>

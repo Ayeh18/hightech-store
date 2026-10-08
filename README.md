@@ -3,9 +3,9 @@
 A PC-hardware e-commerce platform with a compatibility-checked **PC Builder**, built with Laravel 13 (REST API),
 Vue 3 and PostgreSQL. Portfolio project, built phase by phase.
 
-> **Status:** Phases 1-4 complete: Docker environment, authentication and RBAC, audit logging, the product catalog,
-> the PC builder with server-side pricing and saved builds, and the compatibility engine.
-> Cart, checkout, payments and the admin screens follow in later phases.
+> **Status:** Phases 1-5 complete: Docker environment, authentication and RBAC, audit logging, the product catalog,
+> the PC builder with saved builds, the compatibility engine, and the shopping cart (single products and whole PCs).
+> Checkout, payments and the admin screens follow in later phases.
 
 ## Stack
 
@@ -112,6 +112,37 @@ A build is checked by small **rule classes** in `backend/app/Services/Compatibil
 
 Smart filtering judges only the candidate: a problem that already exists between two other parts is not blamed on every
 candidate, and "missing part" rules (no iGPU, no cooler) are skipped because a single part cannot be blamed for a slot that is still empty.
+
+## Cart (Phase 5)
+
+One cart per customer (guests are sent to log in). A cart has two kinds of line:
+
+- **Product line**: one product and a quantity. Adding the same product again increases the quantity (a database
+  index guarantees one line per product, even under concurrent requests).
+- **Build line**: a whole PC. When it is added, the server stores a **snapshot** of its parts and their prices
+  (`cart_item_components`), so the line keeps meaning what it meant even if the saved build is edited or deleted.
+
+**The browser is never trusted for money, stock or compatibility.** `CartEvaluator` re-prices and re-validates the
+whole cart from the database on every read, and the cart responses always return the complete recalculated cart:
+
+| Check | Result |
+|---|---|
+| Price | Always the **current** price. The price stored at add time is only used to warn "the price went up from X to Y". A customer can accept the new prices; they never pay a stale one |
+| Stock | Counted across **all lines**, including parts inside builds, so one graphics card cannot be sold twice. Not reserved by the cart (reservation happens at checkout, under a row lock) |
+| Withdrawn / out-of-stock products | A red error on the line, excluded from the total, `checkout_ready = false` |
+| Builds | Must be **complete, in stock and free of compatibility errors** to be added, and are checked again every time the cart is read (specs or rule settings may have changed). Warnings never block |
+| Limits | 10 of one product, 5 copies of one PC, 30 lines |
+
+| Endpoint | Notes |
+|---|---|
+| `GET /api/cart` | The priced, validated cart: lines, `subtotal`, `item_count`, `checkout_ready`, `has_price_changes` |
+| `POST /api/cart/products` | `{product_id, quantity}` |
+| `POST /api/cart/builds` | Either `{build_id}` (a saved build; others' builds are a 404) or `{items: [{slot, product_id, quantity}], name}` (the parts in the builder). Refused with the reasons (`errors.build[]`) if incomplete, out of stock or incompatible |
+| `PUT /api/cart/items/{id}` | `{quantity}`, re-checked against stock |
+| `DELETE /api/cart/items/{id}` · `DELETE /api/cart` | Remove a line / clear |
+| `POST /api/cart/accept-prices` | Re-snapshot prices so the warnings stop |
+
+A cart line belongs to one customer: anyone else gets a `404`.
 
 ## Tests and quality checks
 

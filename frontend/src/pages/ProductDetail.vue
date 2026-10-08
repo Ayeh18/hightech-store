@@ -3,6 +3,7 @@ import { onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import PriceTag from '@/components/products/PriceTag.vue'
 import ProductImage from '@/components/products/ProductImage.vue'
+import AddToCartForm from '@/components/cart/AddToCartForm.vue'
 import StockBadge from '@/components/products/StockBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -106,6 +107,8 @@ watch(() => route.params.slug, load)
             <PriceTag :price="product.price" :effective="product.effective_price" size="lg" />
             <StockBadge :in-stock="product.in_stock" :low-stock="product.low_stock" />
           </div>
+
+          <AddToCartForm :product="product" />
 
           <dl class="mt-6 grid grid-cols-2 gap-4 rounded-card border border-line bg-surface p-4 text-sm">
             <div>

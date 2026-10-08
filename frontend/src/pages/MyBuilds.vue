@@ -8,6 +8,7 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { parseApiError } from '@/lib/api'
 import { useBuildsStore } from '@/stores/builds'
+import { useCartStore } from '@/stores/cart'
 import { usePcBuilderStore } from '@/stores/pcBuilder'
 
 const store = useBuildsStore()
@@ -18,6 +19,10 @@ const renaming = ref(null)
 const deleting = ref(null)
 const busy = ref(false)
 const actionError = ref('')
+const cart = useCartStore()
+const addingId = ref(null) // the build being added to the cart
+const cartAdded = ref('') // its name, for the confirmation
+const cartProblem = ref({ name: '', reasons: [] })
 const renameError = ref('')
 
 onMounted(() => store.fetchBuilds())
@@ -60,6 +65,25 @@ async function run(action) {
 
 const duplicate = (build) => run(() => store.duplicate(build.id))
 
+/** Add a saved PC to the cart. The server checks it again (complete, in stock, compatible) and explains any refusal. */
+async function addToCart(build) {
+  cartAdded.value = ''
+  cartProblem.value = { name: '', reasons: [] }
+  addingId.value = build.id
+  try {
+    await cart.addBuild({ buildId: build.id })
+    cartAdded.value = build.name
+  } catch (e) {
+    const parsed = parseApiError(e)
+    cartProblem.value = {
+      name: build.name,
+      reasons: parsed.errors.build ?? [Object.values(parsed.errors).flat()[0] ?? parsed.message],
+    }
+  } finally {
+    addingId.value = null
+  }
+}
+
 async function confirmRename(name) {
   renameError.value = ''
   busy.value = true
@@ -91,6 +115,16 @@ async function confirmDelete() {
     </header>
 
     <AlertMessage v-if="actionError" class="mb-4">{{ actionError }}</AlertMessage>
+    <AlertMessage v-if="cartAdded" type="success" class="mb-4">
+      “{{ cartAdded }}” was added to your cart.
+      <RouterLink :to="{ name: 'cart' }" class="font-medium underline">View cart</RouterLink>
+    </AlertMessage>
+    <AlertMessage v-if="cartProblem.reasons.length" class="mb-4">
+      <p class="font-medium">“{{ cartProblem.name }}” can't be added to your cart yet:</p>
+      <ul class="mt-1 list-disc space-y-0.5 pl-5">
+        <li v-for="reason in cartProblem.reasons" :key="reason">{{ reason }}</li>
+      </ul>
+    </AlertMessage>
 
     <ul
       v-if="store.loading && !store.loaded"
@@ -143,7 +177,15 @@ async function confirmDelete() {
         </div>
 
         <div class="mt-4 flex flex-wrap gap-2">
-          <BaseButton class="!px-4 !py-2" @click="edit(build)">Edit</BaseButton>
+          <BaseButton
+            class="!px-4 !py-2"
+            :disabled="!build.purchasable || addingId !== null"
+            :loading="addingId === build.id"
+            :title="build.purchasable ? '' : 'Complete the build and fix any problems to add it to your cart.'"
+            @click="addToCart(build)"
+            >Add to cart</BaseButton
+          >
+          <BaseButton variant="secondary" class="!px-4 !py-2" @click="edit(build)">Edit</BaseButton>
           <BaseButton variant="secondary" class="!px-4 !py-2" :disabled="busy" @click="duplicate(build)"
             >Duplicate</BaseButton
           >

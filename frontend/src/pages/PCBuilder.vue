@@ -11,6 +11,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { parseApiError } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
+import { useCartStore } from '@/stores/cart'
 import { usePcBuilderStore } from '@/stores/pcBuilder'
 
 const builder = usePcBuilderStore()
@@ -27,6 +28,10 @@ const saveError = ref('')
 const saveFieldError = ref('')
 const savedName = ref('')
 const savedUpdated = ref(false) // true: changes to an existing build; false: a new build was created
+const cart = useCartStore()
+const addingToCart = ref(false)
+const cartAdded = ref(false)
+const cartErrors = ref([])
 
 const choosingRow = computed(() => builder.rows.find((row) => row.slot === choosing.value) ?? null)
 
@@ -72,8 +77,33 @@ watch(
   () => builder.selection,
   () => {
     if (builder.selectedCount > 0) savedName.value = ''
+    cartAdded.value = false
+    cartErrors.value = []
   },
 )
+
+// Add the PC to the cart. The browser sends only WHICH parts; the server re-checks that the build is complete,
+// in stock and compatible, and prices it itself. If it refuses, we show its reasons.
+async function addToCart() {
+  cartAdded.value = false
+  cartErrors.value = []
+
+  if (!auth.isAuthenticated) {
+    router.push({ name: 'login', query: { redirect: route.fullPath } })
+    return
+  }
+
+  addingToCart.value = true
+  try {
+    await cart.addBuild({ items: builder.selectionPayload(), name: builder.buildName || undefined })
+    cartAdded.value = true
+  } catch (e) {
+    const parsed = parseApiError(e)
+    cartErrors.value = parsed.errors.build ?? [Object.values(parsed.errors).flat()[0] ?? parsed.message]
+  } finally {
+    addingToCart.value = false
+  }
+}
 onBeforeUnmount(() => (choosing.value = null))
 
 function chooseFor(slot) {
@@ -195,6 +225,17 @@ function startOver() {
         </AlertMessage>
 
         <!-- Small screens: the verdict sits above the parts. Large screens show it in the side panel. -->
+        <AlertMessage v-if="cartAdded" type="success">
+          Added to your cart.
+          <RouterLink :to="{ name: 'cart' }" class="font-medium underline">View cart</RouterLink>
+        </AlertMessage>
+        <AlertMessage v-if="cartErrors.length">
+          <p class="font-medium">This build can't be added to your cart yet:</p>
+          <ul class="mt-1 list-disc space-y-0.5 pl-5">
+            <li v-for="reason in cartErrors" :key="reason">{{ reason }}</li>
+          </ul>
+        </AlertMessage>
+
         <CompatibilityStatus v-if="!builder.isEmpty" v-bind="compat" class="lg:hidden" />
 
         <ComponentSlotRow
@@ -213,7 +254,14 @@ function startOver() {
         aria-label="Build summary"
       >
         <CompatibilityStatus v-bind="compat" class="hidden lg:block" />
-        <BuildSummary :build="builder" :is-logged-in="auth.isAuthenticated" @save="requestSave()" @clear="startOver" />
+        <BuildSummary
+          :build="builder"
+          :is-logged-in="auth.isAuthenticated"
+          :adding-to-cart="addingToCart"
+          @save="requestSave()"
+          @clear="startOver"
+          @add-to-cart="addToCart"
+        />
       </aside>
     </div>
 
@@ -234,9 +282,18 @@ function startOver() {
           </p>
           <p class="font-display text-xl font-bold tabular-nums">{{ builder.totalFormatted }}</p>
         </div>
-        <BaseButton :loading="builder.saving" @click="requestSave()">{{
-          builder.buildId ? 'Save changes' : auth.isAuthenticated ? 'Save build' : 'Log in to save'
-        }}</BaseButton>
+        <div class="flex items-center gap-2">
+          <BaseButton variant="secondary" class="!px-3.5" :loading="builder.saving" @click="requestSave()">{{
+            builder.buildId ? 'Save' : auth.isAuthenticated ? 'Save' : 'Log in to save'
+          }}</BaseButton>
+          <BaseButton
+            class="!px-3.5"
+            :disabled="!builder.purchasable || addingToCart"
+            :loading="addingToCart"
+            @click="addToCart"
+            >Add to cart</BaseButton
+          >
+        </div>
       </div>
     </div>
 

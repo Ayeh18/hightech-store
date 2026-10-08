@@ -4,8 +4,10 @@ import { RouterLink, useRouter } from 'vue-router'
 import SearchBox from '@/components/layout/SearchBox.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useCartStore } from '@/stores/cart'
 
 const auth = useAuthStore()
+const cart = useCartStore()
 const router = useRouter()
 const mainLinks = [
   { name: 'products', label: 'Shop' },
@@ -58,6 +60,32 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
       <div class="order-last w-full md:order-none md:max-w-md md:flex-1"><SearchBox /></div>
 
       <nav class="ml-auto flex items-center gap-2" aria-label="Account">
+        <RouterLink
+          :to="{ name: 'cart' }"
+          class="relative grid size-10 place-items-center rounded-xl border border-line bg-surface text-muted transition hover:border-accent/60 hover:text-ink"
+          :aria-label="cart.itemCount ? `Cart, ${cart.itemCount} ${cart.itemCount === 1 ? 'item' : 'items'}` : 'Cart'"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="size-5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.2a1.5 1.5 0 0 0 1.5-1.1L20 8H6.2" />
+            <circle cx="9.5" cy="19.5" r="1.3" />
+            <circle cx="17" cy="19.5" r="1.3" />
+          </svg>
+          <span
+            v-if="cart.itemCount"
+            class="absolute -right-1.5 -top-1.5 grid min-w-5 place-items-center rounded-full bg-accent px-1 text-[11px] font-bold leading-5 text-white"
+            data-testid="cart-count"
+            aria-hidden="true"
+            >{{ cart.itemCount > 99 ? '99+' : cart.itemCount }}</span
+          >
+        </RouterLink>
+
         <template v-if="auth.isAuthenticated">
           <RouterLink
             v-if="auth.can('admin.access')"

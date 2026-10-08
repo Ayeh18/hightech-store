@@ -18,6 +18,7 @@ const routes = [
     component: () => import('@/pages/PCBuilder.vue'),
     meta: { requiresAuth: true },
   },
+  { path: '/cart', name: 'cart', component: () => import('@/pages/Cart.vue'), meta: { requiresAuth: true } },
   {
     path: '/my-builds',
     name: 'my-builds',
@@ -59,6 +60,7 @@ const TITLES = {
   builder: `PC Builder · ${SITE}`,
   'builder-edit': `PC Builder · ${SITE}`,
   'my-builds': `My builds · ${SITE}`,
+  cart: `Your cart · ${SITE}`,
   login: `Log in · ${SITE}`,
   register: `Sign up · ${SITE}`,
   admin: `Admin · ${SITE}`,
