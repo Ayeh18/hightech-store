@@ -1,27 +1,37 @@
 <script setup>
+import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import ProductGrid from '@/components/products/ProductGrid.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import { api, parseApiError } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
+import { useProductStore } from '@/stores/products'
 
 const auth = useAuthStore()
+const store = useProductStore()
 
-// Decorative only: these are slot names for the illustration, not product data.
-const slots = ['CPU', 'Motherboard', 'RAM', 'GPU', 'Storage', 'PSU', 'Case', 'Cooler']
+// Popular products are fetched separately from the shop page's list so the two never overwrite each other.
+const popular = ref([])
+const popularLoading = ref(true)
+const popularError = ref('')
 
-const features = [
-  {
-    title: 'Compatibility checked',
-    text: 'Sockets, memory type, GPU length, cooler height and power draw are validated as you build.',
-  },
-  {
-    title: 'Live, honest pricing',
-    text: 'Your total is recalculated by the server from current prices, so what you see is what you pay.',
-  },
-  {
-    title: 'Safe payments',
-    text: 'Local payment methods with verified, duplicate-safe confirmations and full order tracking.',
-  },
-]
+async function loadPopular() {
+  popularLoading.value = true
+  popularError.value = ''
+  try {
+    const { data } = await api.get('/api/products', { params: { sort: 'popular', per_page: 8, in_stock: 1 } })
+    popular.value = data.data
+  } catch (e) {
+    popularError.value = parseApiError(e).message
+  } finally {
+    popularLoading.value = false
+  }
+}
+
+onMounted(() => {
+  store.fetchCategories().catch(() => null)
+  loadPopular()
+})
 </script>
 
 <template>
@@ -36,7 +46,7 @@ const features = [
           <p
             class="mb-4 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-muted"
           >
-            <span class="size-1.5 rounded-full bg-success" aria-hidden="true" /> PC hardware store · Malaysia
+            <span class="size-1.5 rounded-full bg-success" aria-hidden="true" /> HighTech Store · Malaysia
           </p>
           <h1 class="font-display text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
             Build your dream PC.<br />
@@ -77,6 +87,39 @@ const features = [
           </ul>
         </div>
       </div>
+    </section>
+
+    <section
+      v-if="store.categories.length"
+      class="mx-auto max-w-7xl px-4 pb-14 sm:px-6"
+      aria-labelledby="categories-heading"
+    >
+      <h2 id="categories-heading" class="font-display text-2xl font-semibold tracking-tight">Shop by category</h2>
+      <ul class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <li v-for="category in store.categories" :key="category.slug">
+          <RouterLink
+            :to="{ name: 'products', query: { category: category.slug } }"
+            class="flex h-full flex-col justify-between rounded-card border border-line bg-surface p-4 transition hover:-translate-y-0.5 hover:border-accent/50"
+          >
+            <span class="font-medium">{{ category.name }}</span>
+            <span class="mt-4 text-xs text-muted">{{ category.products_count }} products</span>
+          </RouterLink>
+        </li>
+      </ul>
+    </section>
+
+    <section
+      v-if="popularLoading || popularError || popular.length"
+      class="mx-auto max-w-7xl px-4 pb-14 sm:px-6"
+      aria-labelledby="popular-heading"
+    >
+      <div class="mb-5 flex items-end justify-between gap-4">
+        <h2 id="popular-heading" class="font-display text-2xl font-semibold tracking-tight">Popular right now</h2>
+        <RouterLink :to="{ name: 'products' }" class="text-sm font-medium text-accent hover:underline"
+          >View all</RouterLink
+        >
+      </div>
+      <ProductGrid :products="popular" :loading="popularLoading" :error="popularError" @retry="loadPopular" />
     </section>
 
     <section class="mx-auto max-w-7xl px-4 pb-20 sm:px-6">

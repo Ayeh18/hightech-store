@@ -10,7 +10,7 @@ import { RouterLink } from 'vue-router'
     />
     <main class="relative w-full max-w-md">
       <RouterLink to="/" class="mb-8 block text-center font-display text-2xl font-semibold tracking-tight">
-        PC Custom <span class="text-accent">Store</span>
+        HighTech <span class="text-accent">Store</span>
       </RouterLink>
       <div class="rounded-card border border-line bg-surface p-6 shadow-2xl sm:p-8"><slot /></div>
     </main>

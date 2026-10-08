@@ -11,6 +11,8 @@ import { useAuthStore } from '@/stores/auth'
  */
 const routes = [
   { path: '/', name: 'home', component: () => import('@/pages/Home.vue') },
+  { path: '/products', name: 'products', component: () => import('@/pages/Products.vue') },
+  { path: '/products/:slug', name: 'product', component: () => import('@/pages/ProductDetail.vue') },
   {
     path: '/login',
     name: 'login',
@@ -36,6 +38,19 @@ const router = createRouter({
   history: createWebHistory(),
   routes,
   scrollBehavior: () => ({ top: 0 }),
+})
+
+const SITE = 'HighTech Store'
+const TITLES = {
+  home: SITE,
+  login: `Log in · ${SITE}`,
+  register: `Sign up · ${SITE}`,
+  admin: `Admin · ${SITE}`,
+  'not-found': `Not found · ${SITE}`,
+}
+// Pages that know their own title (shop, product) set it themselves once their data has loaded.
+router.afterEach((to) => {
+  if (TITLES[to.name]) document.title = TITLES[to.name]
 })
 
 router.beforeEach(async (to) => {

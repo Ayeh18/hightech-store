@@ -1,6 +1,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import SearchBox from '@/components/layout/SearchBox.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -25,8 +26,8 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
 
 <template>
   <header class="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur">
-    <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-      <RouterLink to="/" class="flex items-center gap-2.5" aria-label="PC Custom Store home">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 sm:px-6 md:flex-nowrap">
+      <RouterLink to="/" class="flex items-center gap-2.5" aria-label="HighTech Store home">
         <span class="grid size-9 place-items-center rounded-xl bg-accent-soft text-accent" aria-hidden="true">
           <svg viewBox="0 0 24 24" class="size-5" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="6" y="6" width="12" height="12" rx="1.5" />
@@ -34,11 +35,23 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
           </svg>
         </span>
         <span class="font-display text-lg font-semibold tracking-tight"
-          >PC Custom <span class="text-accent">Store</span></span
+          >HighTech <span class="text-accent">Store</span></span
         >
       </RouterLink>
 
-      <nav class="flex items-center gap-2" aria-label="Account">
+      <nav class="hidden items-center gap-1 md:flex" aria-label="Main">
+        <RouterLink
+          :to="{ name: 'products' }"
+          class="rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:text-ink"
+          active-class="!text-ink"
+        >
+          Shop
+        </RouterLink>
+      </nav>
+
+      <div class="order-last w-full md:order-none md:max-w-md md:flex-1"><SearchBox /></div>
+
+      <nav class="ml-auto flex items-center gap-2" aria-label="Account">
         <template v-if="auth.isAuthenticated">
           <RouterLink
             v-if="auth.can('admin.access')"
