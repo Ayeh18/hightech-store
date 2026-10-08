@@ -60,8 +60,39 @@ export const usePcBuilderStore = defineStore('pcBuilder', () => {
   /** The server found different prices than the ones the browser was showing. */
   const pricesChanged = computed(() => verified.value && server.value.subtotal.amount !== localTotalSen.value)
 
-  const issues = computed(() => (serverFresh.value && server.value ? server.value.issues : []))
-  const issuesFor = (slot) => issues.value.filter((issue) => issue.slot === slot)
+  // The server's latest verdict. While a newer check is on its way the last answer stays visible (marked stale),
+  // so messages do not flash away on every click.
+  const stale = computed(() => server.value !== null && !serverFresh.value)
+  const issues = computed(() => server.value?.issues ?? []) // stock / availability
+  const compatibility = computed(() => server.value?.compatibility ?? null)
+  const compatStatus = computed(() => compatibility.value?.status ?? null) // compatible | warning | incompatible
+  const compatIssues = computed(() => compatibility.value?.issues ?? [])
+  const compatMetrics = computed(() => compatibility.value?.metrics ?? null)
+
+  /** Everything wrong with one slot: stock problems plus compatibility problems that involve it. */
+  const issuesFor = (slot) => [
+    ...issues.value
+      .filter((issue) => issue.slot === slot)
+      .map((i) => ({ key: `${i.code}:${slot}`, severity: i.severity, message: i.message })),
+    ...compatIssues.value
+      .filter((issue) => showsOnRow(issue, slot))
+      .map((i) => ({ key: `${i.rule}:${slot}`, severity: i.severity, message: i.message })),
+  ]
+
+  /**
+   * A problem between two parts (socket, size) is shown on both rows. A problem that depends on three or more parts
+   * (e.g. "the PSU is too small for this CPU + GPU") is shown only on its first, main row: the PSU's.
+   */
+  function showsOnRow(issue, slot) {
+    return issue.slots.length > 2 ? issue.slots[0] === slot : issue.slots.includes(slot)
+  }
+
+  /** Blocking problems (stock errors and compatibility errors) in the latest verdict. */
+  const blockingCount = computed(
+    () =>
+      issues.value.filter((i) => i.severity === 'error').length +
+      compatIssues.value.filter((i) => i.severity === 'error').length,
+  )
   const purchasable = computed(() => verified.value && server.value.purchasable)
 
   // ---------- draft persistence ----------
@@ -235,8 +266,14 @@ export const usePcBuilderStore = defineStore('pcBuilder', () => {
     totalFormatted,
     verified,
     pricesChanged,
+    stale,
     issues,
+    compatibility,
+    compatStatus,
+    compatIssues,
+    compatMetrics,
     issuesFor,
+    blockingCount,
     purchasable,
     loadSlots,
     select,

@@ -3,9 +3,9 @@
 A PC-hardware e-commerce platform with a compatibility-checked **PC Builder**, built with Laravel 13 (REST API),
 Vue 3 and PostgreSQL. Portfolio project, built phase by phase.
 
-> **Status:** Phases 1-2 complete: Docker environment, authentication, role-based access control, audit logging,
-> and the product catalog (categories, brands, DB-driven specifications, inventory, images, search and filters, shop UI).
-> The PC builder, cart, checkout and payments follow in later phases.
+> **Status:** Phases 1-4 complete: Docker environment, authentication and RBAC, audit logging, the product catalog,
+> the PC builder with server-side pricing and saved builds, and the compatibility engine.
+> Cart, checkout, payments and the admin screens follow in later phases.
 
 ## Stack
 
@@ -72,6 +72,46 @@ Amounts are always **integer sen** (`RM 4,602.00` = `460200`). Reads are public;
 | `POST /api/builds/{id}/duplicate` | owner only | Creates "Copy of ..." |
 
 A build stores only *which* products and how many. Prices are always read live, so a saved build never shows a stale price.
+
+## Compatibility engine (Phase 4)
+
+A build is checked by small **rule classes** in `backend/app/Services/Compatibility/Rules/`, one per check, listed in
+`config/compatibility.php`. `CompatibilityService` runs the enabled rules and returns a report: `compatible`, `warning`
+(only warnings) or `incompatible` (at least one error). **Errors block buying a build; warnings never do.**
+
+| Rule | Default | Checks |
+|---|---|---|
+| `cpu_socket_matches_motherboard` | error | AM5 CPU needs an AM5 board |
+| `ram_type_matches_motherboard` | error | DDR4 vs DDR5 |
+| `ram_modules_fit_motherboard` / `ram_capacity_within_motherboard_limit` | error | sticks <= slots, total GB <= board maximum |
+| `motherboard_fits_case` | error | ATX / Micro ATX / Mini ITX support |
+| `gpu_fits_case` | error | card length <= case maximum |
+| `cooler_fits_case` | error | air cooler height <= case maximum (liquid coolers skipped) |
+| `cooler_supports_cpu_socket` | error | mounting kit supports the CPU socket |
+| `cooler_cools_cpu` | warning | cooler rating >= CPU TDP |
+| `psu_covers_estimated_load` | error | PSU >= CPU + GPU + 80 W |
+| `psu_has_headroom` | warning | PSU >= estimate + 30%, rounded up to 50 W (e.g. 420 W -> 550 W) |
+| `psu_meets_gpu_recommendation` | warning | PSU >= the GPU maker's recommendation |
+| `psu_fits_case` | error | ATX PSU in an SFX-only case |
+| `storage_fits_m2_slots` | error | M.2 drives <= board M.2 slots |
+| `cpu_needs_graphics_card` / `cpu_cooler_required` | warning | CPU without iGPU / without a bundled cooler, and the slot is empty |
+
+- **Rules are data-tolerant:** a rule that is missing a part or a spec stays silent instead of guessing. A contract test
+  fails if a rule reads a spec key that the catalog does not define, so renaming a spec cannot quietly disable a rule.
+- **Adding a rule:** write a class (extend `AbstractRule`), add it to `config/compatibility.php`, run
+  `php artisan db:seed --class=CompatibilityRuleSeeder`. Rules are plain PHP objects and need no database to unit-test.
+- **Admin control without a deployment:** the `compatibility_rules` table stores, per rule, on/off, severity and tunable
+  numbers (`base_system_watts`, `headroom_percent`). Missing rows fall back to the defaults, so a forgotten seed never disables checks.
+
+| Endpoint | Auth | Notes |
+|---|---|---|
+| `POST /api/pc-builder/validate` | public | Now also returns `compatibility: {status, issues[{rule, severity, message, slots}], metrics{estimated_power_watts, recommended_psu_watts}}` and a `purchasable` flag that includes compatibility |
+| `GET /api/pc-builder/parts` | public | Smart filtering: `slot`, the usual product filters, and the build so far as `parts[cpu][id]=5&parts[ram][id]=12&parts[ram][qty]=2`. Parts come back **compatible, then warning, then incompatible**, each with its `compatibility` verdict. Incompatible parts are hidden unless `include_incompatible=1` |
+| `GET /api/compatibility-rules` | `compatibility.manage` (admin) | Every rule with its settings and defaults |
+| `PUT /api/compatibility-rules/{key}` | `compatibility.manage` | `is_enabled`, `severity`, `params`. Validated per rule, audit-logged |
+
+Smart filtering judges only the candidate: a problem that already exists between two other parts is not blamed on every
+candidate, and "missing part" rules (no iGPU, no cooler) are skipped because a single part cannot be blamed for a slot that is still empty.
 
 ## Tests and quality checks
 

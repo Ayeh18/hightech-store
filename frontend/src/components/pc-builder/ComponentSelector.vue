@@ -12,12 +12,15 @@ import { useProductStore } from '@/stores/products'
 import ComponentCard from './ComponentCard.vue'
 
 /*
- * "Choose CPU": a dialog with search, filters, sorting and paging, all driven by the same catalog API as the
- * shop. It keeps its own state (not the URL), so browsing parts never disturbs the page behind it.
+ * "Choose CPU": a dialog with search, filters, sorting and paging. It asks GET /api/pc-builder/parts, which is the
+ * shop's product search plus a compatibility check of every part against what is already in the build:
+ * compatible parts come first and incompatible ones are hidden unless the customer asks to see them.
+ * It keeps its own state (not the URL), so browsing parts never disturbs the page behind it.
  */
 const props = defineProps({
   open: { type: Boolean, required: true },
   row: { type: Object, default: null }, // the builder row being filled
+  context: { type: Object, default: () => ({}) }, // the build so far: { cpu: { id, qty }, ... }
 })
 const emit = defineEmits(['close', 'select'])
 
@@ -28,6 +31,11 @@ const filters = ref(emptyFilters())
 const results = reactive({ items: [], meta: { total: 0, current_page: 1, last_page: 1 }, loading: false, error: '' })
 const searchText = ref('')
 const filtersOpen = ref(false)
+const includeIncompatible = ref(false)
+const compat = reactive({ hidden: 0, counts: {} })
+
+// With nothing else chosen yet there is nothing to be compatible with.
+const hasContext = computed(() => Object.keys(props.context).some((slot) => slot !== props.row?.slot))
 
 const definitions = computed(() => (props.row ? (products.filterDefs[props.row.category.slug] ?? null) : null))
 const selectedId = computed(() => props.row?.selected?.product.id ?? null)
@@ -43,12 +51,19 @@ async function load() {
   results.error = ''
 
   try {
-    const { data } = await api.get('/api/products', {
-      params: filtersToApiParams(filters.value, PER_PAGE),
+    const { data } = await api.get('/api/pc-builder/parts', {
+      params: {
+        ...filtersToApiParams(filters.value, PER_PAGE),
+        slot: props.row.slot,
+        parts: props.context,
+        include_incompatible: includeIncompatible.value ? 1 : 0,
+      },
       signal: controller.signal,
     })
     results.items = data.data
     results.meta = data.meta
+    compat.hidden = data.compatibility?.hidden_incompatible ?? 0
+    compat.counts = data.compatibility?.counts ?? {}
   } catch (e) {
     if (e.code === 'ERR_CANCELED') return
     results.items = []
@@ -61,6 +76,11 @@ async function load() {
 function update(next) {
   filters.value = next
   load()
+}
+
+function setIncompatible(show) {
+  includeIncompatible.value = show
+  update({ ...filters.value, page: 1 })
 }
 
 function onSearch() {
@@ -89,6 +109,7 @@ watch(
     if (!open || !props.row) return
     searchText.value = ''
     filtersOpen.value = false
+    includeIncompatible.value = false
     filters.value = { ...emptyFilters(), category: props.row.category.slug }
     products.fetchFilterDefs(props.row.category.slug).catch(() => null)
     products.fetchBrands().catch(() => null)
@@ -155,6 +176,24 @@ const activeCount = computed(
             :searching="Boolean(filters.q)"
             @update:model-value="update({ ...filters, sort: $event, page: 1 })"
           />
+        </div>
+
+        <div v-if="hasContext" class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <label class="flex cursor-pointer items-center gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              class="size-4 accent-accent"
+              :checked="includeIncompatible"
+              @change="setIncompatible($event.target.checked)"
+            />
+            Show incompatible parts
+          </label>
+          <p class="text-xs text-muted" data-testid="compat-note">
+            <template v-if="!includeIncompatible && compat.hidden">
+              {{ compat.hidden }} incompatible {{ compat.hidden === 1 ? 'part is' : 'parts are' }} hidden.
+            </template>
+            <template v-else>Parts that fit your build are listed first.</template>
+          </p>
         </div>
 
         <p class="mb-3 text-sm text-muted" aria-live="polite">

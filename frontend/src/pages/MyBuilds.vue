@@ -22,6 +22,21 @@ const renameError = ref('')
 
 onMounted(() => store.fetchBuilds())
 
+const tones = {
+  ok: 'bg-success/15 text-success',
+  warning: 'bg-warning/15 text-warning',
+  error: 'bg-danger/15 text-danger',
+}
+
+/** One word that tells the customer what state a saved build is in. The server decides all of it. */
+function badge(build) {
+  if (build.compatibility_status === 'incompatible') return { label: 'Incompatible', tone: 'error' }
+  if (!build.complete) return { label: 'Incomplete', tone: 'warning' }
+  if (!build.purchasable) return { label: 'Needs attention', tone: 'error' }
+  if (build.compatibility_status === 'warning') return { label: 'Has warnings', tone: 'warning' }
+  return { label: 'Ready to buy', tone: 'ok' }
+}
+
 const when = (iso) =>
   new Intl.DateTimeFormat('en-MY', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
 
@@ -108,17 +123,8 @@ async function confirmDelete() {
       >
         <div class="flex items-start justify-between gap-3">
           <h2 class="font-display text-lg font-semibold leading-snug">{{ build.name }}</h2>
-          <span
-            class="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
-            :class="
-              build.issue_count
-                ? 'bg-danger/15 text-danger'
-                : build.complete
-                  ? 'bg-success/15 text-success'
-                  : 'bg-warning/15 text-warning'
-            "
-          >
-            {{ build.issue_count ? 'Needs attention' : build.complete ? 'Complete' : 'Incomplete' }}
+          <span class="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium" :class="tones[badge(build).tone]">
+            {{ badge(build).label }}
           </span>
         </div>
 

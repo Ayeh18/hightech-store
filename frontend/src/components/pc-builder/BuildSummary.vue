@@ -19,7 +19,7 @@ const lines = computed(() => props.build.rows.filter((row) => row.selected))
 const lineTotal = (row) => formatSen(row.selected.product.effective_price.amount * row.selected.quantity)
 // Only problems without a slot are listed here; slot problems are shown on their own row.
 const generalIssues = computed(() => props.build.issues.filter((issue) => !issue.slot))
-const blockingCount = computed(() => props.build.issues.filter((i) => i.severity === 'error').length)
+const blockingCount = computed(() => props.build.blockingCount)
 </script>
 
 <template>
@@ -84,8 +84,8 @@ const blockingCount = computed(() => props.build.issues.filter((i) => i.severity
         >{{ issue.message }}</AlertMessage
       >
       <AlertMessage v-if="blockingCount && !generalIssues.length" type="error">
-        {{ blockingCount === 1 ? '1 part needs your attention' : `${blockingCount} parts need your attention` }} before
-        you can buy this build.
+        {{ blockingCount === 1 ? '1 problem needs' : `${blockingCount} problems need` }} fixing before you can buy this
+        build.
       </AlertMessage>
     </div>
 

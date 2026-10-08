@@ -18,7 +18,13 @@ const stepQuantity = (delta) => emit('quantity', props.row.selected.quantity + d
 <template>
   <section
     class="rounded-card border bg-surface p-4 transition sm:p-5"
-    :class="issues.some((i) => i.severity === 'error') ? 'border-danger/50' : 'border-line'"
+    :class="
+      issues.some((i) => i.severity === 'error')
+        ? 'border-danger/50'
+        : issues.length
+          ? 'border-warning/40'
+          : 'border-line'
+    "
     :aria-label="row.label"
   >
     <div class="flex items-center justify-between gap-3">
@@ -123,7 +129,7 @@ const stepQuantity = (delta) => emit('quantity', props.row.selected.quantity + d
     <ul v-if="issues.length" class="mt-3 space-y-1.5">
       <li
         v-for="issue in issues"
-        :key="issue.code"
+        :key="issue.key"
         class="flex items-start gap-2 text-sm"
         :class="issue.severity === 'error' ? 'text-danger' : 'text-warning'"
         role="alert"

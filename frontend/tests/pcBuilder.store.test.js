@@ -211,6 +211,102 @@ describe('pcBuilder store', () => {
     expect(store.totalSen).toBe(100)
   })
 
+  it('exposes the server compatibility verdict and merges it with stock problems per slot', async () => {
+    const store = await setup()
+    api.post.mockResolvedValue(
+      serverAnswer(100, {
+        issues: [{ code: 'out_of_stock', severity: 'error', message: 'Product 1 is out of stock.', slot: 'cpu' }],
+        compatibility: {
+          status: 'incompatible',
+          issues: [
+            {
+              rule: 'cpu_socket_matches_motherboard',
+              severity: 'error',
+              message: 'Socket mismatch.',
+              slots: ['cpu', 'ram'],
+            },
+            { rule: 'psu_has_headroom', severity: 'warning', message: 'Low headroom.', slots: ['gpu'] },
+          ],
+          metrics: { estimated_power_watts: 420, recommended_psu_watts: 550 },
+        },
+        purchasable: false,
+      }),
+    )
+    store.select('cpu', product(1, 100))
+    await vi.advanceTimersByTimeAsync(400)
+
+    expect(store.compatStatus).toBe('incompatible')
+    expect(store.compatMetrics).toEqual({ estimated_power_watts: 420, recommended_psu_watts: 550 })
+    // The CPU row shows both its stock problem and the compatibility problem; the GPU row only its own warning.
+    expect(store.issuesFor('cpu').map((i) => i.message)).toEqual(['Product 1 is out of stock.', 'Socket mismatch.'])
+    expect(store.issuesFor('ram').map((i) => i.message)).toEqual(['Socket mismatch.'])
+    expect(store.issuesFor('gpu').map((i) => i.severity)).toEqual(['warning'])
+    expect(store.blockingCount).toBe(2) // one stock error + one compatibility error; warnings do not block
+    expect(store.purchasable).toBe(false)
+  })
+
+  it('shows a problem between two parts on both rows, but an aggregate problem only on its main row', async () => {
+    const store = await setup()
+    api.post.mockResolvedValue(
+      serverAnswer(100, {
+        compatibility: {
+          status: 'incompatible',
+          issues: [
+            { rule: 'gpu_fits_case', severity: 'error', message: 'GPU too long.', slots: ['gpu', 'case'] },
+            {
+              rule: 'psu_covers_estimated_load',
+              severity: 'error',
+              message: 'PSU too small.',
+              slots: ['psu', 'cpu', 'gpu'],
+            },
+          ],
+          metrics: {},
+        },
+      }),
+    )
+    store.select('cpu', product(1, 100))
+    await vi.advanceTimersByTimeAsync(400)
+
+    expect(store.issuesFor('gpu').map((i) => i.message)).toEqual(['GPU too long.'])
+    expect(store.issuesFor('case').map((i) => i.message)).toEqual(['GPU too long.'])
+    expect(store.issuesFor('psu').map((i) => i.message)).toEqual(['PSU too small.'])
+    expect(store.issuesFor('cpu')).toEqual([]) // not repeated under CPU
+    expect(store.compatIssues).toHaveLength(2) // but the summary card still lists everything
+  })
+
+  it('keeps showing the last verdict, marked stale, while a newer check is running', async () => {
+    const store = await setup()
+    api.post.mockResolvedValue(
+      serverAnswer(100, {
+        compatibility: {
+          status: 'warning',
+          issues: [{ rule: 'r', severity: 'warning', message: 'm', slots: ['cpu'] }],
+          metrics: {},
+        },
+      }),
+    )
+    store.select('cpu', product(1, 100))
+    await vi.advanceTimersByTimeAsync(400)
+    expect(store.stale).toBe(false)
+
+    store.select('ram', product(2, 100)) // triggers a new check
+    expect(store.stale).toBe(true)
+    expect(store.compatStatus).toBe('warning') // not blank in the meantime
+    expect(store.purchasable).toBe(false) // but never treated as buyable until the server confirms
+  })
+
+  it('clears the verdict when the build becomes empty', async () => {
+    const store = await setup()
+    api.post.mockResolvedValue(serverAnswer(100, { compatibility: { status: 'compatible', issues: [], metrics: {} } }))
+    store.select('cpu', product(1, 100))
+    await vi.advanceTimersByTimeAsync(400)
+
+    store.remove('cpu')
+
+    expect(store.compatStatus).toBeNull()
+    expect(store.issuesFor('cpu')).toEqual([])
+  })
+
   it('creates a new build, then updates the same one on the next save', async () => {
     const store = await setup()
     // No timers advance here, so the first POST is the save itself (not the debounced price check).

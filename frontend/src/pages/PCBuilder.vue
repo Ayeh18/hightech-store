@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
+import CompatibilityStatus from '@/components/pc-builder/CompatibilityStatus.vue'
 import ComponentSelector from '@/components/pc-builder/ComponentSelector.vue'
 import ComponentSlotRow from '@/components/pc-builder/ComponentSlotRow.vue'
 import SaveBuildDialog from '@/components/pc-builder/SaveBuildDialog.vue'
@@ -27,6 +28,22 @@ const saveFieldError = ref('')
 const savedName = ref('')
 
 const choosingRow = computed(() => builder.rows.find((row) => row.slot === choosing.value) ?? null)
+
+// What the part picker needs to judge compatibility: the build so far, as ids and quantities only.
+const context = computed(() =>
+  Object.fromEntries(
+    Object.entries(builder.selection).map(([slot, { product, quantity }]) => [slot, { id: product.id, qty: quantity }]),
+  ),
+)
+const slotLabels = computed(() => Object.fromEntries(builder.slots.map((s) => [s.slot, s.label])))
+const compat = computed(() => ({
+  status: builder.compatStatus,
+  issues: builder.compatIssues,
+  metrics: builder.compatMetrics,
+  partCount: builder.selectedCount,
+  stale: builder.stale,
+  slotLabels: slotLabels.value,
+}))
 
 async function init() {
   loading.value = true
@@ -157,6 +174,9 @@ function startOver() {
           <RouterLink :to="{ name: 'my-builds' }" class="font-medium underline">View my builds</RouterLink>
         </AlertMessage>
 
+        <!-- Small screens: the verdict sits above the parts. Large screens show it in the side panel. -->
+        <CompatibilityStatus v-if="!builder.isEmpty" v-bind="compat" class="lg:hidden" />
+
         <ComponentSlotRow
           v-for="row in builder.rows"
           :key="row.slot"
@@ -168,7 +188,11 @@ function startOver() {
         />
       </div>
 
-      <aside class="lg:sticky lg:top-24" aria-label="Build summary">
+      <aside
+        class="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-1"
+        aria-label="Build summary"
+      >
+        <CompatibilityStatus v-bind="compat" class="hidden lg:block" />
         <BuildSummary :build="builder" :is-logged-in="auth.isAuthenticated" @save="requestSave()" @clear="startOver" />
       </aside>
     </div>
@@ -182,6 +206,11 @@ function startOver() {
         <div>
           <p class="text-xs text-muted">
             {{ builder.requiredFilled }}/{{ builder.requiredSlots.length }} required parts
+            <span
+              v-if="builder.compatStatus && builder.compatStatus !== 'compatible'"
+              :class="builder.compatStatus === 'incompatible' ? 'text-danger' : 'text-warning'"
+              >· {{ builder.compatStatus === 'incompatible' ? '✗ Issues' : '⚠ Warnings' }}</span
+            >
           </p>
           <p class="font-display text-xl font-bold tabular-nums">{{ builder.totalFormatted }}</p>
         </div>
@@ -191,7 +220,13 @@ function startOver() {
       </div>
     </div>
 
-    <ComponentSelector :open="choosing !== null" :row="choosingRow" @close="choosing = null" @select="onSelect" />
+    <ComponentSelector
+      :open="choosing !== null"
+      :row="choosingRow"
+      :context="context"
+      @close="choosing = null"
+      @select="onSelect"
+    />
 
     <SaveBuildDialog
       :open="saveOpen"
