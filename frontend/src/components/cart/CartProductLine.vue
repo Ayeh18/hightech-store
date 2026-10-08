@@ -36,11 +36,11 @@ defineEmits(['quantity', 'remove'])
           </p>
         </div>
 
-        <div class="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
+        <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 sm:flex-col sm:items-end">
           <p class="font-display text-lg font-bold tabular-nums" data-testid="line-total">
             {{ line.unit_price ? line.line_total.formatted : '—' }}
           </p>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <QuantityStepper
               :model-value="line.quantity"
               :max="MAX_PRODUCT_QUANTITY"
