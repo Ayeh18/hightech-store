@@ -41,6 +41,9 @@ async function submit() {
     <p class="mt-1 text-sm text-muted">Log in to manage your builds and orders.</p>
 
     <form class="mt-6 space-y-4" novalidate @submit.prevent="submit">
+      <AlertMessage v-if="auth.sessionEnded" type="warning">
+        You were signed out because your session ended. Please log in again.
+      </AlertMessage>
       <AlertMessage v-if="message">{{ message }}</AlertMessage>
       <BaseInput
         v-model="form.email"

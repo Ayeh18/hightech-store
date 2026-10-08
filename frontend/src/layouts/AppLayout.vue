@@ -1,6 +1,7 @@
 <script setup>
 import AppFooter from '@/components/layout/AppFooter.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
+import SessionEndedBanner from '@/components/layout/SessionEndedBanner.vue'
 </script>
 
 <template>
@@ -12,6 +13,7 @@ import AppHeader from '@/components/layout/AppHeader.vue'
       Skip to content
     </a>
     <AppHeader />
+    <SessionEndedBanner />
     <main id="main" class="flex-1"><slot /></main>
     <AppFooter />
   </div>
