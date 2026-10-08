@@ -25,8 +25,15 @@ class ProductImage extends Model
         return $this->belongsTo(Product::class);
     }
 
+    /**
+     * Files on the local disk are returned as same-origin paths ("/storage/..."), so they work behind the
+     * Vite proxy, nginx or any domain. Remote disks (e.g. S3) already return a full URL and are left alone.
+     */
     public function getUrlAttribute(): string
     {
-        return Storage::disk('public')->url($this->path);
+        $url = Storage::disk('public')->url($this->path);
+        $app = rtrim((string) config('app.url'), '/');
+
+        return str_starts_with($url, $app.'/') ? substr($url, strlen($app)) : $url;
     }
 }

@@ -44,7 +44,7 @@ it('exposes the primary image url on product cards', function () {
     $product = Product::factory()->create();
     $this->actingAs($this->admin)->post("/api/products/{$product->id}/images", ['image' => UploadedFile::fake()->image('a.jpg', 400, 400)], ['Accept' => 'application/json']);
 
-    $this->getJson('/api/products')->assertJsonPath('data.0.image', fn ($url) => str_contains($url, "/storage/products/{$product->id}/"));
+    $this->getJson('/api/products')->assertJsonPath('data.0.image', fn ($url) => str_starts_with($url, "/storage/products/{$product->id}/"));
 });
 
 it('rejects files that are not safe images', function (callable $file) {
