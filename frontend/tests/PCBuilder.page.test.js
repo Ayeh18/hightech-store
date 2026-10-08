@@ -41,11 +41,16 @@ const router = () =>
     ],
   })
 
+// Every mounted page is unmounted after its test, so a leftover page (and its teleported dialog) can never
+// leak into the next test.
+const mounted = []
+
 async function mountAt(path) {
   const r = router()
   r.push(path)
   await r.isReady()
   const wrapper = mount(PCBuilder, { global: { plugins: [r] }, attachTo: document.body })
+  mounted.push(wrapper)
   await flushPromises()
   return { wrapper, r }
 }
@@ -80,6 +85,7 @@ describe('PC builder page: saving', () => {
   })
 
   afterEach(() => {
+    mounted.splice(0).forEach((wrapper) => wrapper.unmount())
     document.body.innerHTML = ''
   })
 
@@ -91,6 +97,7 @@ describe('PC builder page: saving', () => {
     expect(wrapper.text()).toContain('Test CPU')
 
     await [...wrapper.findAll('button')].find((b) => b.text() === 'Save build').trigger('click')
+    await flushPromises()
     const input = document.body.querySelector('[role=dialog] input')
     input.value = 'Rig'
     input.dispatchEvent(new Event('input'))
@@ -119,6 +126,7 @@ describe('PC builder page: saving', () => {
     builder.select('cpu', cpu)
     await flushPromises()
     await [...wrapper.findAll('button')].find((b) => b.text() === 'Save build').trigger('click')
+    await flushPromises()
     const input = document.body.querySelector('[role=dialog] input')
     input.value = 'Rig'
     input.dispatchEvent(new Event('input'))
@@ -133,7 +141,7 @@ describe('PC builder page: saving', () => {
     expect(wrapper.text()).not.toContain('Saved as')
   })
 
-  it('also resets after saving changes to an existing build, and returns to the empty builder page', async () => {
+  it('stays on the build after saving changes to it, with its parts, and says the changes were saved', async () => {
     api.put.mockResolvedValue({ data: { data: { id: 'B1', name: 'Rig' } } })
     const { wrapper, r } = await mountAt('/builder/B1')
     const builder = usePcBuilderStore()
@@ -144,11 +152,60 @@ describe('PC builder page: saving', () => {
     await flushPromises()
 
     expect(api.put).toHaveBeenCalledWith('/api/builds/B1', expect.objectContaining({ name: 'Rig' }))
+    // Still editing the same build: parts kept, same page, same heading.
+    expect(builder.selectedCount).toBe(1)
+    expect(builder.buildId).toBe('B1')
+    expect(r.currentRoute.value.name).toBe('builder-edit')
+    expect(wrapper.text()).toContain('Test CPU')
+    expect(wrapper.text()).toContain('Editing')
+    expect(wrapper.text()).toContain('Changes to “Rig” saved.')
+    expect(wrapper.text()).not.toContain('Saved as')
+    expect(Object.keys(JSON.parse(localStorage.getItem('hightech.builder.draft.v1')).selection)).toEqual(['cpu'])
+  })
+
+  it('hides the "changes saved" message once the parts are changed again', async () => {
+    api.put.mockResolvedValue({ data: { data: { id: 'B1', name: 'Rig' } } })
+    const { wrapper } = await mountAt('/builder/B1')
+    const builder = usePcBuilderStore()
+
+    await [...wrapper.findAll('button')].find((b) => b.text() === 'Save changes').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Changes to “Rig” saved.')
+
+    builder.setQuantity('cpu', 1) // no real change: the message stays
+    await flushPromises()
+    expect(wrapper.text()).toContain('Changes to “Rig” saved.')
+
+    builder.select('ram', { ...cpu, id: 2, name: 'Test RAM' })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Changes to')
+    expect(wrapper.text()).toContain('Test RAM')
+  })
+
+  it('"Save as a new build" while editing creates a separate build and starts a fresh builder', async () => {
+    const { wrapper, r } = await mountAt('/builder/B1')
+    const builder = usePcBuilderStore()
+    api.post.mockImplementation(async (url) => {
+      if (url === '/api/builds') return { data: { data: { id: 'B2', name: 'Rig copy' } } }
+      return { data: { data: { items: [], subtotal: money(50000), issues: [], purchasable: true } } }
+    })
+
+    await [...wrapper.findAll('button')].find((b) => b.text() === 'Save as a new build').trigger('click')
+    await flushPromises()
+    const input = document.body.querySelector('[role=dialog] input')
+    expect(input.value).toBe('Rig (copy)') // suggests a different name
+    input.value = 'Rig copy'
+    input.dispatchEvent(new Event('input'))
+    await flushPromises()
+    document.body.querySelector('[role=dialog] button[type=submit]').click()
+    await flushPromises()
+
+    expect(api.post).toHaveBeenCalledWith('/api/builds', expect.objectContaining({ name: 'Rig copy' }))
+    expect(api.put).not.toHaveBeenCalled() // the original build was not overwritten
     expect(builder.selectedCount).toBe(0)
     expect(builder.buildId).toBeNull()
     expect(r.currentRoute.value.name).toBe('builder')
-    expect(wrapper.text()).not.toContain('Editing')
-    expect(wrapper.text()).toContain('Saved as “Rig”')
+    expect(wrapper.text()).toContain('Saved as “Rig copy”.')
   })
 
   it('keeps the parts when saving fails, so nothing is lost', async () => {
@@ -162,6 +219,7 @@ describe('PC builder page: saving', () => {
     await flushPromises()
 
     await [...wrapper.findAll('button')].find((b) => b.text() === 'Save build').trigger('click')
+    await flushPromises()
     const input = document.body.querySelector('[role=dialog] input')
     input.value = 'Rig'
     input.dispatchEvent(new Event('input'))

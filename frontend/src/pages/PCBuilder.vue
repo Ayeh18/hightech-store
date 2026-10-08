@@ -26,6 +26,7 @@ const saveAsNew = ref(false)
 const saveError = ref('')
 const saveFieldError = ref('')
 const savedName = ref('')
+const savedUpdated = ref(false) // true: changes to an existing build; false: a new build was created
 
 const choosingRow = computed(() => builder.rows.find((row) => row.slot === choosing.value) ?? null)
 
@@ -65,11 +66,12 @@ async function init() {
 onMounted(init)
 watch(() => route.params.id, init)
 
-// The "Saved as ..." message has done its job once the customer starts choosing parts for a new build.
+// The "saved" message has done its job once the customer changes the parts again. (Clearing the builder after a
+// new build is saved does not count: it leaves no parts selected, so the message stays.)
 watch(
-  () => builder.selectedCount,
-  (count) => {
-    if (count > 0) savedName.value = ''
+  () => builder.selection,
+  () => {
+    if (builder.selectedCount > 0) savedName.value = ''
   },
 )
 onBeforeUnmount(() => (choosing.value = null))
@@ -105,14 +107,20 @@ async function persist(name) {
   saveError.value = ''
   saveFieldError.value = ''
   try {
+    // Saving changes to a build being edited keeps the customer on it; saving a NEW build starts a fresh one.
+    const keepEditing = Boolean(builder.buildId) && !saveAsNew.value
     if (saveAsNew.value) builder.detach()
     const saved = await builder.save(name)
     saveOpen.value = false
-    // The build is safely stored on the server, so give the customer a clean builder for the next one.
-    // (It stays available under "My builds" for editing.)
-    builder.clear()
     savedName.value = saved.name
-    if (route.name === 'builder-edit') router.replace({ name: 'builder' })
+    savedUpdated.value = keepEditing
+
+    if (!keepEditing) {
+      // The new build is safely stored on the server (and listed under "My builds"), so give the customer a clean
+      // builder for the next one.
+      builder.clear()
+      if (route.name === 'builder-edit') router.replace({ name: 'builder' })
+    }
   } catch (e) {
     const parsed = parseApiError(e)
     saveFieldError.value = parsed.errors.name?.[0] ?? ''
@@ -181,7 +189,8 @@ function startOver() {
     <div v-else class="grid items-start gap-6 lg:grid-cols-[1fr_22rem]">
       <div class="space-y-4">
         <AlertMessage v-if="savedName" type="success">
-          Saved as “{{ savedName }}”.
+          <template v-if="savedUpdated">Changes to “{{ savedName }}” saved.</template>
+          <template v-else>Saved as “{{ savedName }}”.</template>
           <RouterLink :to="{ name: 'my-builds' }" class="font-medium underline">View my builds</RouterLink>
         </AlertMessage>
 
