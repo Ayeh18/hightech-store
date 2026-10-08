@@ -7,6 +7,10 @@ import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const router = useRouter()
+const mainLinks = [
+  { name: 'products', label: 'Shop' },
+  { name: 'builder', label: 'PC Builder' },
+]
 const menuOpen = ref(false)
 const menuRoot = ref(null)
 
@@ -39,13 +43,15 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
         >
       </RouterLink>
 
-      <nav class="hidden items-center gap-1 md:flex" aria-label="Main">
+      <nav class="order-last flex w-full items-center gap-1 md:order-none md:w-auto" aria-label="Main">
         <RouterLink
-          :to="{ name: 'products' }"
+          v-for="link in mainLinks"
+          :key="link.name"
+          :to="{ name: link.name }"
           class="rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:text-ink"
           active-class="!text-ink"
         >
-          Shop
+          {{ link.label }}
         </RouterLink>
       </nav>
 
@@ -84,6 +90,14 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
               class="absolute right-0 mt-2 w-56 rounded-xl border border-line bg-surface p-1.5 shadow-2xl"
             >
               <p class="truncate px-3 py-2 text-xs text-muted">{{ auth.user.email }}</p>
+              <RouterLink
+                :to="{ name: 'my-builds' }"
+                role="menuitem"
+                class="block rounded-lg px-3 py-2 text-sm hover:bg-elevated"
+                @click="menuOpen = false"
+              >
+                My builds
+              </RouterLink>
               <RouterLink
                 v-if="auth.can('admin.access')"
                 to="/admin"

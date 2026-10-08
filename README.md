@@ -61,6 +61,18 @@ Amounts are always **integer sen** (`RM 4,602.00` = `460200`). Reads are public;
 | `POST/PUT/DELETE /api/categories` · `/api/brands` | `categories.manage` / `brands.manage` | Cannot delete while products exist |
 | `POST /api/categories/{slug}/specs` · `PUT/DELETE /api/spec-definitions/{id}` | `categories.manage` | Add specs to a category with no code change |
 
+## PC builder API (Phase 3)
+
+| Endpoint | Auth | Notes |
+|---|---|---|
+| `GET /api/pc-builder/components` | public | The slots (CPU, motherboard, ...) in screen order, whether each is required, its max quantity and the category that supplies it |
+| `POST /api/pc-builder/validate` | public (throttled) | Body `{items: [{slot, product_id, quantity}]}`. Returns the build **recalculated from database prices and stock**: line totals, subtotal (sen), missing required slots and issues (`out_of_stock`, `insufficient_stock`, `product_unavailable`). Client prices are ignored. Products that are not on sale are never revealed |
+| `GET/POST /api/builds` | customer | List (with totals) / save a build. Incomplete builds can be saved. Max 25 per customer |
+| `GET/PUT/DELETE /api/builds/{id}` | owner only | Anyone else gets `404`. `PUT` can rename and/or replace the parts |
+| `POST /api/builds/{id}/duplicate` | owner only | Creates "Copy of ..." |
+
+A build stores only *which* products and how many. Prices are always read live, so a saved build never shows a stale price.
+
 ## Tests and quality checks
 
 ```bash

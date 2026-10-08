@@ -11,6 +11,19 @@ import { useAuthStore } from '@/stores/auth'
  */
 const routes = [
   { path: '/', name: 'home', component: () => import('@/pages/Home.vue') },
+  { path: '/builder', name: 'builder', component: () => import('@/pages/PCBuilder.vue') },
+  {
+    path: '/builder/:id',
+    name: 'builder-edit',
+    component: () => import('@/pages/PCBuilder.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/my-builds',
+    name: 'my-builds',
+    component: () => import('@/pages/MyBuilds.vue'),
+    meta: { requiresAuth: true },
+  },
   { path: '/products', name: 'products', component: () => import('@/pages/Products.vue') },
   { path: '/products/:slug', name: 'product', component: () => import('@/pages/ProductDetail.vue') },
   {
@@ -43,6 +56,9 @@ const router = createRouter({
 const SITE = 'HighTech Store'
 const TITLES = {
   home: SITE,
+  builder: `PC Builder · ${SITE}`,
+  'builder-edit': `PC Builder · ${SITE}`,
+  'my-builds': `My builds · ${SITE}`,
   login: `Log in · ${SITE}`,
   register: `Sign up · ${SITE}`,
   admin: `Admin · ${SITE}`,

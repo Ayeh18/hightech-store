@@ -111,6 +111,18 @@ it('lists only my builds, most recently edited first, with totals', function () 
         ->and($response->json('data.0.parts.0.slot'))->toBe('cpu');
 });
 
+it('lists the parts of a build in builder order, whatever order they were saved in', function () {
+    $me = customer();
+    // Saved in the "wrong" order on purpose: psu first, cpu last.
+    $build = savedBuild($me, ['psu' => 1000, 'ram' => 1000, 'cpu' => 1000]);
+
+    $this->actingAs($me)->getJson('/api/builds')
+        ->assertJsonPath('data.0.id', $build->id)
+        ->assertJsonPath('data.0.parts.0.slot', 'cpu')
+        ->assertJsonPath('data.0.parts.1.slot', 'ram')
+        ->assertJsonPath('data.0.parts.2.slot', 'psu');
+});
+
 it('does not run extra queries per build in the list (no N+1)', function () {
     $me = customer();
     savedBuild($me, ['cpu' => 1000, 'ram' => 1000]);

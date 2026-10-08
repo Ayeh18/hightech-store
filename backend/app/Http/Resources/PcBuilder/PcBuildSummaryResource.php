@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\PcBuilder;
 
+use App\Enums\BuilderSlot;
 use App\Models\PcBuild;
 use App\Services\PcBuilder\BuildPricer;
 use Illuminate\Http\Request;
@@ -24,7 +25,11 @@ class PcBuildSummaryResource extends JsonResource
             'name' => $this->name,
             'subtotal' => $priced->subtotal,
             'item_count' => $this->items->sum('quantity'),
-            'parts' => $this->items->map(fn ($item) => ['slot' => $item->slot->value, 'name' => $item->product->name])->values(),
+            // In builder order (CPU, motherboard, RAM, ...), not the order the rows were inserted.
+            'parts' => $this->items
+                ->sortBy(fn ($item) => array_search($item->slot, BuilderSlot::cases(), true))
+                ->map(fn ($item) => ['slot' => $item->slot->value, 'name' => $item->product->name])
+                ->values(),
             'complete' => $priced->isComplete(),
             'purchasable' => $priced->isPurchasable(),
             'issue_count' => count($priced->issues),

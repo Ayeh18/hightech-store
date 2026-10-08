@@ -57,17 +57,23 @@ onMounted(() => {
             before you check out.
           </p>
           <div class="mt-8 flex flex-wrap gap-3">
-            <RouterLink v-if="!auth.isAuthenticated" to="/register"
-              ><BaseButton class="px-6 py-3">Create account</BaseButton></RouterLink
+            <RouterLink :to="{ name: 'builder' }"><BaseButton class="px-6 py-3">Start building</BaseButton></RouterLink>
+            <RouterLink :to="{ name: 'products' }"
+              ><BaseButton variant="secondary" class="px-6 py-3">Browse parts</BaseButton></RouterLink
             >
-            <RouterLink v-if="!auth.isAuthenticated" to="/login"
-              ><BaseButton variant="secondary" class="px-6 py-3">Log in</BaseButton></RouterLink
-            >
-            <p v-else class="text-sm text-muted">
-              Welcome back, <span class="font-semibold text-ink">{{ auth.user.name }}</span
-              >. The catalog and builder are coming next.
-            </p>
           </div>
+          <p v-if="!auth.isAuthenticated" class="mt-5 text-sm text-muted">
+            <RouterLink to="/register" class="font-medium text-accent hover:underline">Create an account</RouterLink>
+            to save your builds ·
+            <RouterLink to="/login" class="font-medium text-accent hover:underline">Log in</RouterLink>
+          </p>
+          <p v-else class="mt-5 text-sm text-muted">
+            Welcome back, <span class="font-semibold text-ink">{{ auth.user.name }}</span
+            >.
+            <RouterLink :to="{ name: 'my-builds' }" class="font-medium text-accent hover:underline"
+              >My builds</RouterLink
+            >
+          </p>
         </div>
 
         <div class="rounded-card border border-line bg-surface p-5 shadow-2xl" aria-hidden="true">
