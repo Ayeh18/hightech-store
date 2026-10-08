@@ -147,6 +147,36 @@ it('sorts by price, newest and popularity', function () {
     $this->getJson('/api/products?sort=random')->assertUnprocessable();
 });
 
+it('ranks search results by relevance, and relevance is the default while searching', function () {
+    $contains = Product::factory()->create(['name' => 'AMD Ryzen 7 7700', 'sold_count' => 10]);
+    $startsWith = Product::factory()->create(['name' => 'Ryzen 7 Pro 8700G', 'sold_count' => 1]);
+    $wordsOnly = Product::factory()->create(['name' => 'AMD Ryzen 5 7600', 'sold_count' => 999]); // matches "ryzen" and "7" separately
+    $morePopular = Product::factory()->create(['name' => 'AMD Ryzen 7 9700X', 'sold_count' => 500]);
+
+    $order = fn (string $qs) => collect($this->getJson("/api/products?{$qs}")->assertOk()->json('data'))->pluck('id')->all();
+    $expected = [$startsWith->id, $morePopular->id, $contains->id, $wordsOnly->id];
+
+    // Names starting with the text, then names containing the whole phrase (popular first), then word-by-word matches.
+    expect($order('q=ryzen+7'))->toBe($expected)
+        ->and($order('q=ryzen+7&sort=relevance'))->toBe($expected)
+        // An explicit sort still wins over relevance.
+        ->and($order('q=ryzen+7&sort=popular'))->toBe([$wordsOnly->id, $morePopular->id, $contains->id, $startsWith->id]);
+});
+
+it('puts an exact SKU match first, ahead of products that only mention it in the name', function () {
+    Product::factory()->create(['name' => 'Bracket for GPU-X1 cards', 'sku' => 'BRK-1', 'sold_count' => 900]);
+    $exact = Product::factory()->create(['name' => 'Graphics Card', 'sku' => 'GPU-X1', 'sold_count' => 0]);
+
+    expect($this->getJson('/api/products?q=gpu-x1')->assertOk()->json('data.0.id'))->toBe($exact->id);
+});
+
+it('treats relevance as popularity when there is no search text', function () {
+    $low = Product::factory()->create(['sold_count' => 1]);
+    $high = Product::factory()->create(['sold_count' => 50]);
+
+    expect(collect($this->getJson('/api/products?sort=relevance')->assertOk()->json('data'))->pluck('id')->all())->toBe([$high->id, $low->id]);
+});
+
 it('does not run extra queries per product (no N+1)', function () {
     $category = cpuCategory();
     foreach (range(1, 10) as $i) {

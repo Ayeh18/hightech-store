@@ -13,6 +13,8 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   server: {
+    // Inside Docker, file-change events from the host do not always reach the container, so poll instead.
+    watch: process.env.VITE_USE_POLLING === 'true' ? { usePolling: true, interval: 300 } : undefined,
     proxy: {
       '/api': { target: apiTarget, changeOrigin: false },
       '/sanctum': { target: apiTarget, changeOrigin: false },

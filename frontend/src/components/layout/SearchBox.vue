@@ -25,7 +25,10 @@ function go() {
   const base = route.name === 'products' ? { ...route.query } : {}
   delete base.page
   if (q) base.q = q
-  else delete base.q
+  else {
+    delete base.q
+    if (base.sort === 'relevance') delete base.sort // relevance needs search text
+  }
   router.push({ name: 'products', query: base })
 }
 

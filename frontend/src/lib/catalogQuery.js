@@ -15,11 +15,16 @@ const number = (value) => {
 }
 
 export const SORT_OPTIONS = [
+  { value: 'relevance', label: 'Most relevant' },
   { value: 'popular', label: 'Most popular' },
   { value: 'newest', label: 'Newest' },
   { value: 'price_asc', label: 'Price: low to high' },
   { value: 'price_desc', label: 'Price: high to low' },
 ]
+
+/** "Most relevant" only makes sense while searching, so it is the default then and unavailable otherwise. */
+export const defaultSort = (hasSearch) => (hasSearch ? 'relevance' : 'popular')
+export const sortOptionsFor = (hasSearch) => SORT_OPTIONS.filter((o) => hasSearch || o.value !== 'relevance')
 
 export function emptyFilters() {
   return {
@@ -45,7 +50,9 @@ export function queryToFilters(query = {}) {
   filters.priceMin = number(query.price_min)
   filters.priceMax = number(query.price_max)
   filters.inStock = query.in_stock === '1'
-  filters.sort = SORT_OPTIONS.some((o) => o.value === query.sort) ? query.sort : 'popular'
+  filters.sort = sortOptionsFor(Boolean(filters.q)).some((o) => o.value === query.sort)
+    ? query.sort
+    : defaultSort(Boolean(filters.q))
   filters.page = Math.max(1, Math.floor(number(query.page) ?? 1))
 
   for (const [key, value] of Object.entries(query)) {
@@ -72,7 +79,8 @@ export function filtersToQuery(filters) {
   if (filters.priceMin !== null) query.price_min = String(filters.priceMin)
   if (filters.priceMax !== null) query.price_max = String(filters.priceMax)
   if (filters.inStock) query.in_stock = '1'
-  if (filters.sort && filters.sort !== 'popular') query.sort = filters.sort
+  // Only written when it differs from the default for this state, so plain searches keep short URLs.
+  if (filters.sort && filters.sort !== defaultSort(Boolean(filters.q))) query.sort = filters.sort
   if (filters.page > 1) query.page = String(filters.page)
 
   for (const [key, value] of Object.entries(filters.specs)) {
@@ -138,8 +146,10 @@ export function removeChip(filters, chipId) {
   const next = { ...filters, brands: [...filters.brands], specs: { ...filters.specs }, page: 1 }
   const [type, key, value] = chipId.split(':')
 
-  if (type === 'q') next.q = ''
-  else if (type === 'brand') next.brands = next.brands.filter((b) => b !== key)
+  if (type === 'q') {
+    next.q = ''
+    if (next.sort === 'relevance') next.sort = 'popular' // nothing left to rank by
+  } else if (type === 'brand') next.brands = next.brands.filter((b) => b !== key)
   else if (type === 'price') [next.priceMin, next.priceMax] = [null, null]
   else if (type === 'in_stock') next.inStock = false
   else if (type === 'spec') {

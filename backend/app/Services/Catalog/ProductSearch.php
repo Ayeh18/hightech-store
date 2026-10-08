@@ -122,21 +122,36 @@ class ProductSearch
 
     private function applySort(Builder $query, ProductFilters $filters): void
     {
-        $sort = $filters->sort;
+        $hasSearch = $filters->search !== null && $filters->search !== '';
 
-        // A text search with no explicit sort lists name matches that start with the text first.
-        if ($sort === null && $filters->search) {
-            $query->orderByRaw('(products.name ILIKE ?) DESC', [$this->escapeLike($filters->search).'%']);
-        }
+        // While searching, "relevance" is the default. With nothing to rank by it behaves like "popular".
+        $sort = $filters->sort ?? ($hasSearch ? 'relevance' : 'popular');
 
         match ($sort) {
             'price_asc' => $query->orderByRaw('COALESCE(products.discount_price, products.price) ASC'),
             'price_desc' => $query->orderByRaw('COALESCE(products.discount_price, products.price) DESC'),
             'newest' => $query->orderByDesc('products.created_at'),
+            'relevance' => $hasSearch ? $this->orderByRelevance($query, $filters->search) : $query->orderByDesc('products.sold_count'),
             default => $query->orderByDesc('products.sold_count'),
         };
 
         $query->orderBy('products.id'); // stable order so pages never repeat or skip items
+    }
+
+    /**
+     * Best matches first, in this order: exact SKU, name starts with the text, name contains the whole
+     * phrase. Anything that matched only through separate words, brand or category comes after, and
+     * popularity breaks the remaining ties. (A boolean sorts DESC as: true first.)
+     */
+    private function orderByRelevance(Builder $query, string $search): Builder
+    {
+        $text = $this->escapeLike(preg_replace('/\s+/', ' ', $search));
+
+        return $query
+            ->orderByRaw('(products.sku ILIKE ?) DESC', [$text])
+            ->orderByRaw('(products.name ILIKE ?) DESC', [$text.'%'])
+            ->orderByRaw('(products.name ILIKE ?) DESC', ['%'.$text.'%'])
+            ->orderByDesc('products.sold_count');
     }
 
     private function escapeLike(string $value): string

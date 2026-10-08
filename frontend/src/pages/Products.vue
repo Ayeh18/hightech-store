@@ -129,6 +129,7 @@ watch(
           <span v-else />
           <ProductSortSelect
             :model-value="filters.sort"
+            :searching="Boolean(filters.q)"
             @update:model-value="apply({ ...filters, sort: $event, page: 1 })"
           />
         </div>

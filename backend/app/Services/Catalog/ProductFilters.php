@@ -5,7 +5,7 @@ namespace App\Services\Catalog;
 /** Everything a product list request can ask for, already validated. Prices are in sen. */
 final readonly class ProductFilters
 {
-    public const SORTS = ['popular', 'newest', 'price_asc', 'price_desc'];
+    public const SORTS = ['relevance', 'popular', 'newest', 'price_asc', 'price_desc'];
 
     /**
      * @param  array<int, string>  $brands  brand slugs

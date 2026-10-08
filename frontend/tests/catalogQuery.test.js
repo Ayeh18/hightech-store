@@ -7,6 +7,7 @@ import {
   queryToFilters,
   removeChip,
   ringgitToSen,
+  sortOptionsFor,
 } from '@/lib/catalogQuery'
 
 describe('catalogQuery', () => {
@@ -51,6 +52,27 @@ describe('catalogQuery', () => {
 
     expect(filters).toEqual(emptyFilters())
     expect(filtersToQuery(filters)).toEqual({})
+  })
+
+  it('defaults to relevance while searching and to popularity otherwise', () => {
+    expect(queryToFilters({ q: 'ryzen' }).sort).toBe('relevance')
+    expect(queryToFilters({}).sort).toBe('popular')
+
+    // Default sorts are not written to the URL; explicit different choices are.
+    expect(filtersToQuery(queryToFilters({ q: 'ryzen' }))).toEqual({ q: 'ryzen' })
+    expect(filtersToQuery({ ...emptyFilters(), q: 'ryzen', sort: 'popular' })).toEqual({ q: 'ryzen', sort: 'popular' })
+  })
+
+  it('ignores relevance when there is no search text, and offers it only while searching', () => {
+    expect(queryToFilters({ sort: 'relevance' }).sort).toBe('popular')
+    expect(sortOptionsFor(false).map((o) => o.value)).not.toContain('relevance')
+    expect(sortOptionsFor(true).map((o) => o.value)).toContain('relevance')
+  })
+
+  it('falls back to popular when the search is cleared while sorted by relevance', () => {
+    const searching = queryToFilters({ q: 'ryzen' })
+    expect(removeChip(searching, 'q')).toMatchObject({ q: '', sort: 'popular' })
+    expect(removeChip({ ...searching, sort: 'price_asc' }, 'q').sort).toBe('price_asc')
   })
 
   it('converts ringgit to integer sen without float drift', () => {

@@ -50,7 +50,7 @@ Amounts are always **integer sen** (`RM 4,602.00` = `460200`). Reads are public;
 
 | Endpoint | Auth | Notes |
 |---|---|---|
-| `GET /api/products` | public | `q`, `category`, `brands[]`, `price_min`, `price_max` (sen), `in_stock`, `specs[key][]`, `specs[key][min]`, `sort` (`popular\|newest\|price_asc\|price_desc`), `per_page` (max 48), `page` |
+| `GET /api/products` | public | `q`, `category`, `brands[]`, `price_min`, `price_max` (sen), `in_stock`, `specs[key][]`, `specs[key][min]`, `sort` (`relevance\|popular\|newest\|price_asc\|price_desc`; `relevance` is the default while `q` is set), `per_page` (max 48), `page` |
 | `GET /api/products/{id\|slug}` | public | Full product with specifications. Drafts return 404 for customers |
 | `GET /api/categories` · `GET /api/brands` | public | With published product counts |
 | `GET /api/categories/{slug}/filters` | public | Brands, price range and spec filter options with counts, built from the database |

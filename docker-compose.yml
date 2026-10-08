@@ -50,6 +50,7 @@ services:
       - ./frontend:/app
     environment:
       VITE_API_PROXY_TARGET: http://app:8000
+      VITE_USE_POLLING: 'true'
     command: npm run dev -- --host 0.0.0.0 --port 5173
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
