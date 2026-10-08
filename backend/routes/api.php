@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\Catalog\InventoryController;
 use App\Http\Controllers\Api\Catalog\ProductController;
 use App\Http\Controllers\Api\Catalog\ProductImageController;
 use App\Http\Controllers\Api\Catalog\SpecDefinitionController;
+use App\Http\Controllers\Api\PcBuilder\BuildController;
+use App\Http\Controllers\Api\PcBuilder\PcBuilderController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -75,4 +77,24 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('brands/{brand}', [BrandController::class, 'update']);
         Route::delete('brands/{brand}', [BrandController::class, 'destroy']);
     });
+});
+
+/*
+|--------------------------------------------------------------------------
+| PC builder
+|--------------------------------------------------------------------------
+| Anyone can build and price a PC (guests too). Saving builds needs an account, and a saved
+| build is private to its owner.
+*/
+
+Route::get('pc-builder/components', [PcBuilderController::class, 'components']);
+Route::post('pc-builder/validate', [PcBuilderController::class, 'validateBuild'])->middleware('throttle:60,1');
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('builds', [BuildController::class, 'index']);
+    Route::post('builds', [BuildController::class, 'store'])->middleware('throttle:30,1');
+    Route::get('builds/{build}', [BuildController::class, 'show']);
+    Route::put('builds/{build}', [BuildController::class, 'update']);
+    Route::delete('builds/{build}', [BuildController::class, 'destroy']);
+    Route::post('builds/{build}/duplicate', [BuildController::class, 'duplicate'])->middleware('throttle:30,1');
 });
