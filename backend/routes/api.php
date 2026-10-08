@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Catalog\InventoryController;
 use App\Http\Controllers\Api\Catalog\ProductController;
 use App\Http\Controllers\Api\Catalog\ProductImageController;
 use App\Http\Controllers\Api\Catalog\SpecDefinitionController;
+use App\Http\Controllers\Api\Compatibility\CompatibilityRuleController;
 use App\Http\Controllers\Api\PcBuilder\BuildController;
 use App\Http\Controllers\Api\PcBuilder\PcBuilderController;
 use Illuminate\Support\Facades\Route;
@@ -89,6 +90,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 Route::get('pc-builder/components', [PcBuilderController::class, 'components']);
 Route::post('pc-builder/validate', [PcBuilderController::class, 'validateBuild'])->middleware('throttle:60,1');
+Route::get('pc-builder/parts', [PcBuilderController::class, 'parts'])->middleware('throttle:120,1');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('builds', [BuildController::class, 'index']);
@@ -97,4 +99,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('builds/{build}', [BuildController::class, 'update']);
     Route::delete('builds/{build}', [BuildController::class, 'destroy']);
     Route::post('builds/{build}/duplicate', [BuildController::class, 'duplicate'])->middleware('throttle:30,1');
+});
+
+// Compatibility rule settings (switch rules on/off, change severity, tune numbers).
+Route::middleware(['auth:sanctum', 'can:compatibility.manage'])->group(function () {
+    Route::get('compatibility-rules', [CompatibilityRuleController::class, 'index']);
+    Route::put('compatibility-rules/{key}', [CompatibilityRuleController::class, 'update']);
 });

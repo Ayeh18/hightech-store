@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\SpecDefinition;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Builds the product list query: search, filters, sorting and pagination.
@@ -19,6 +20,23 @@ class ProductSearch
      * @param  bool  $includeHidden  admin view: drafts, archived products and inactive categories too
      */
     public function paginate(ProductFilters $filters, bool $includeHidden = false): LengthAwarePaginator
+    {
+        return $this->query($filters, $includeHidden)->paginate($filters->perPage)->withQueryString();
+    }
+
+    /**
+     * Every match in the requested order, without paging (capped by $limit). Used when results must be
+     * post-processed in PHP, e.g. grouping parts by compatibility.
+     *
+     * @return Collection<int, Product>
+     */
+    public function get(ProductFilters $filters, int $limit, bool $includeHidden = false): Collection
+    {
+        return $this->query($filters, $includeHidden)->limit($limit)->get();
+    }
+
+    /** @return Builder<Product> */
+    private function query(ProductFilters $filters, bool $includeHidden): Builder
     {
         $query = Product::query()->with([
             'brand', 'category.specDefinitions', 'images', 'inventory', 'specifications',
@@ -36,7 +54,7 @@ class ProductSearch
         $this->applyFilters($query, $filters);
         $this->applySort($query, $filters);
 
-        return $query->paginate($filters->perPage)->withQueryString();
+        return $query;
     }
 
     private function applySearch(Builder $query, ?string $search): void

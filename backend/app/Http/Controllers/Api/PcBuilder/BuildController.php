@@ -7,6 +7,7 @@ use App\Http\Requests\PcBuilder\SaveBuildRequest;
 use App\Http\Resources\PcBuilder\PcBuildResource;
 use App\Http\Resources\PcBuilder\PcBuildSummaryResource;
 use App\Models\PcBuild;
+use App\Services\PcBuilder\BuildEvaluator;
 use App\Services\PcBuilder\PcBuildService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,9 +25,12 @@ class BuildController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $builds = $request->user()->pcBuilds()
-            ->with(['items.product.category', 'items.product.inventory'])
+            ->with(['items.product.category', 'items.product.inventory', 'items.product.specifications'])
             ->latest('updated_at')
             ->get();
+
+        // Load the compatibility rule settings once for the whole list, not once per build.
+        $request->attributes->set('compatibility_rules', app(BuildEvaluator::class)->rules());
 
         return PcBuildSummaryResource::collection($builds);
     }

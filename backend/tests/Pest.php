@@ -22,6 +22,7 @@ pest()->extend(TestCase::class)->in('Unit');
 use App\Enums\BuilderSlot;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductSpecification;
 
 /** A product that belongs in a builder slot (the category for the slot is created once and reused). */
 function partFor(BuilderSlot $slot, int $sen = 10000, array $attributes = []): Product
@@ -52,4 +53,27 @@ function completeBuild(int $sen = 10000): array
     }
 
     return [$items, $products];
+}
+
+/**
+ * A builder part with specs, e.g. specPart(BuilderSlot::Cpu, ['socket' => 'AM5', 'tdp_watts' => 65]).
+ * Strings become text specs, numbers numeric specs and arrays list specs.
+ */
+function specPart(BuilderSlot $slot, array $specs, int $sen = 10000, array $attributes = []): Product
+{
+    $product = partFor($slot, $sen, $attributes);
+
+    foreach ($specs as $key => $value) {
+        ProductSpecification::create([
+            'product_id' => $product->id,
+            'key' => $key,
+            ...match (true) {
+                is_array($value) => ['value_json' => $value],
+                is_int($value) || is_float($value) => ['value_number' => $value],
+                default => ['value_string' => $value],
+            },
+        ]);
+    }
+
+    return $product->load('specifications');
 }

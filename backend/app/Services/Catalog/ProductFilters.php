@@ -24,6 +24,15 @@ final readonly class ProductFilters
         public int $perPage = 12,
     ) {}
 
+    /** The same filters, restricted to one category (the builder fixes the category from the slot). */
+    public function withCategory(string $category): self
+    {
+        return new self(
+            $this->search, $category, $this->brands, $this->priceMin, $this->priceMax,
+            $this->inStock, $this->specs, $this->sort, $this->status, $this->perPage,
+        );
+    }
+
     /** @param  array<string, mixed>  $validated */
     public static function fromArray(array $validated): self
     {

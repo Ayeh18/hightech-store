@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Compatibility\RuleRegistry;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -11,7 +12,10 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // The compatibility rules listed in config/compatibility.php, built once per request.
+        $this->app->singleton(RuleRegistry::class, fn ($app) => new RuleRegistry(
+            array_map(fn (string $class) => $app->make($class), config('compatibility.rules')),
+        ));
     }
 
     public function boot(): void
