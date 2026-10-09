@@ -20,7 +20,7 @@ const tone = computed(() => {
 </script>
 
 <template>
-  <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium" :class="tone">
+  <span class="inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium" :class="tone">
     <span class="sr-only">{{ kind === 'payment' ? 'Payment: ' : 'Order: ' }}</span
     >{{ status.label }}
   </span>

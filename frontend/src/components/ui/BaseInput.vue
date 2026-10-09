@@ -9,6 +9,7 @@ defineProps({
   autocomplete: { type: String, default: 'off' },
   placeholder: { type: String, default: '' },
   required: { type: Boolean, default: false },
+  disabled: { type: Boolean, default: false },
 })
 defineEmits(['update:modelValue'])
 
@@ -26,9 +27,10 @@ const errorId = computed(() => `${id}-error`)
       :autocomplete="autocomplete"
       :placeholder="placeholder"
       :required="required"
+      :disabled="disabled"
       :aria-invalid="error ? 'true' : undefined"
       :aria-describedby="error ? errorId : undefined"
-      class="w-full rounded-xl border bg-bg px-4 py-2.5 text-sm text-ink placeholder:text-muted/70 transition focus:border-accent focus:outline-none"
+      class="w-full rounded-xl border bg-bg px-4 py-2.5 text-sm text-ink placeholder:text-muted/70 transition focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
       :class="error ? 'border-danger' : 'border-line'"
       @input="$emit('update:modelValue', $event.target.value)"
     />

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import AdminLayout from '@/layouts/AdminLayout.vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import GatewayLayout from '@/layouts/GatewayLayout.vue'
@@ -16,7 +17,7 @@ const auth = useAuthStore()
 const cart = useCartStore()
 const addresses = useAddressStore()
 const orders = useOrderStore()
-const layouts = { auth: AuthLayout, gateway: GatewayLayout }
+const layouts = { auth: AuthLayout, gateway: GatewayLayout, admin: AdminLayout }
 const layout = computed(() => layouts[route.meta.layout] ?? AppLayout)
 
 // The cart follows the login: load it when a customer is signed in, and forget it (and their addresses and orders) the

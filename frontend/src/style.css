@@ -35,3 +35,27 @@
     @apply outline-2 outline-offset-2 outline-accent;
   }
 }
+
+/* Tables in the admin area. One look, defined once. */
+@layer components {
+  .admin-table {
+    @apply w-full text-left text-sm;
+  }
+  .admin-table thead th {
+    @apply whitespace-nowrap border-b border-line bg-elevated/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted;
+  }
+  .admin-table tbody td {
+    @apply border-b border-line/60 px-4 py-3 align-middle;
+  }
+  .admin-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .admin-table tbody tr:hover {
+    @apply bg-elevated/40;
+  }
+  /* Numbers and amounts stay in one piece ("RM 1,414.00" never splits across two lines). */
+  .admin-table th.text-right,
+  .admin-table td.text-right {
+    @apply whitespace-nowrap;
+  }
+}

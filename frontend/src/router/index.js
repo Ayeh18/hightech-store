@@ -9,6 +9,9 @@ import { useAuthStore } from '@/stores/auth'
  *   layout       - "auth" for the centred card layout (default: main shell)
  * Pages are lazy-loaded (() => import(...)) so each one becomes its own JS file (code splitting).
  */
+// Meta for an admin page: signed in, holding this permission, shown inside the admin layout.
+const admin = (permission) => ({ requiresAuth: true, permission, layout: 'admin' })
+
 const routes = [
   { path: '/', name: 'home', component: () => import('@/pages/Home.vue') },
   { path: '/builder', name: 'builder', component: () => import('@/pages/PCBuilder.vue') },
@@ -65,11 +68,102 @@ const routes = [
     component: () => import('@/pages/auth/Register.vue'),
     meta: { guestOnly: true, layout: 'auth' },
   },
+  // ---------- Admin. Every page needs a permission (the API re-checks it) and uses the admin layout.
   {
     path: '/admin',
     name: 'admin',
+    component: () => import('@/pages/admin/AdminHome.vue'),
+    meta: admin('admin.access'),
+  },
+  {
+    path: '/admin/orders',
+    name: 'admin-orders',
+    component: () => import('@/pages/admin/Orders.vue'),
+    meta: admin('orders.manage'),
+  },
+  {
+    path: '/admin/orders/:id',
+    name: 'admin-order',
+    component: () => import('@/pages/admin/OrderDetail.vue'),
+    meta: admin('orders.manage'),
+  },
+  {
+    path: '/admin/refunds',
+    name: 'admin-refunds',
+    component: () => import('@/pages/admin/Refunds.vue'),
+    meta: admin('refunds.manage'),
+  },
+  {
+    path: '/admin/payments',
+    name: 'admin-payments',
+    component: () => import('@/pages/admin/Payments.vue'),
+    meta: admin('payments.view'),
+  },
+  {
+    path: '/admin/payments/:id',
+    name: 'admin-payment',
+    component: () => import('@/pages/admin/PaymentDetail.vue'),
+    meta: admin('payments.view'),
+  },
+  {
+    path: '/admin/products',
+    name: 'admin-products',
+    component: () => import('@/pages/admin/Products.vue'),
+    meta: admin('products.manage'),
+  },
+  {
+    path: '/admin/products/new',
+    name: 'admin-product-new',
+    component: () => import('@/pages/admin/ProductForm.vue'),
+    meta: admin('products.manage'),
+  },
+  {
+    path: '/admin/products/:id',
+    name: 'admin-product-edit',
+    component: () => import('@/pages/admin/ProductForm.vue'),
+    meta: admin('products.manage'),
+  },
+  {
+    path: '/admin/coupons',
+    name: 'admin-coupons',
+    component: () => import('@/pages/admin/Coupons.vue'),
+    meta: admin('coupons.manage'),
+  },
+  {
+    path: '/admin/compatibility',
+    name: 'admin-compatibility',
+    component: () => import('@/pages/admin/CompatibilityRules.vue'),
+    meta: admin('compatibility.manage'),
+  },
+  {
+    path: '/admin/users',
+    name: 'admin-users',
+    component: () => import('@/pages/admin/Users.vue'),
+    meta: admin('users.manage'),
+  },
+  {
+    path: '/admin/catalog',
+    name: 'admin-catalog',
+    component: () => import('@/pages/admin/Catalog.vue'),
+    meta: admin('categories.manage'),
+  },
+  {
+    path: '/admin/reports',
+    name: 'admin-reports',
+    component: () => import('@/pages/admin/Reports.vue'),
+    meta: admin('reports.view'),
+  },
+  {
+    path: '/admin/audit',
+    name: 'admin-audit',
+    component: () => import('@/pages/admin/AuditLogs.vue'),
+    meta: admin('audit.view'),
+  },
+  {
+    path: '/admin/dashboard',
+    name: 'admin-dashboard',
     component: () => import('@/pages/admin/Dashboard.vue'),
-    meta: { requiresAuth: true, permission: 'admin.access' },
+    meta: admin('reports.view'),
   },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/pages/NotFound.vue') },
 ]
@@ -94,6 +188,20 @@ const TITLES = {
   login: `Log in · ${SITE}`,
   register: `Sign up · ${SITE}`,
   admin: `Admin · ${SITE}`,
+  'admin-dashboard': `Dashboard · Admin · ${SITE}`,
+  'admin-products': `Products · Admin · ${SITE}`,
+  'admin-product-new': `New product · Admin · ${SITE}`,
+  'admin-product-edit': `Product · Admin · ${SITE}`,
+  'admin-coupons': `Coupons · Admin · ${SITE}`,
+  'admin-compatibility': `Compatibility rules · Admin · ${SITE}`,
+  'admin-users': `Users · Admin · ${SITE}`,
+  'admin-catalog': `Brands & categories · Admin · ${SITE}`,
+  'admin-reports': `Sales reports · Admin · ${SITE}`,
+  'admin-audit': `Audit log · Admin · ${SITE}`,
+  'admin-orders': `Orders · Admin · ${SITE}`,
+  'admin-refunds': `Refunds · Admin · ${SITE}`,
+  'admin-payments': `Payments · Admin · ${SITE}`,
+  'admin-payment': `Payment · Admin · ${SITE}`,
   'not-found': `Not found · ${SITE}`,
 }
 // Pages that know their own title (shop, product) set it themselves once their data has loaded.
