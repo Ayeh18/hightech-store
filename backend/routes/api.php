@@ -30,9 +30,11 @@ use Illuminate\Support\Facades\Route;
 | GET /sanctum/csrf-cookie, then POSTs to these endpoints with the session cookie.
 */
 
+// Rate limits: `throttle:attempts,minutes,name`. The NAME matters. Without it, Laravel counts all routes that use a
+// numeric limit in ONE shared bucket per customer, so a few cart edits would use up the allowance for placing an order.
 Route::prefix('auth')->group(function () {
-    Route::post('register', [AuthController::class, 'register'])->middleware('throttle:10,1');
-    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:20,1');
+    Route::post('register', [AuthController::class, 'register'])->middleware('throttle:10,1,register');
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:20,1,login');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
@@ -99,16 +101,16 @@ Route::middleware('auth:sanctum')->group(function () {
 */
 
 Route::get('pc-builder/components', [PcBuilderController::class, 'components']);
-Route::post('pc-builder/validate', [PcBuilderController::class, 'validateBuild'])->middleware('throttle:60,1');
-Route::get('pc-builder/parts', [PcBuilderController::class, 'parts'])->middleware('throttle:120,1');
+Route::post('pc-builder/validate', [PcBuilderController::class, 'validateBuild'])->middleware('throttle:60,1,builder-validate');
+Route::get('pc-builder/parts', [PcBuilderController::class, 'parts'])->middleware('throttle:120,1,builder-parts');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('builds', [BuildController::class, 'index']);
-    Route::post('builds', [BuildController::class, 'store'])->middleware('throttle:30,1');
+    Route::post('builds', [BuildController::class, 'store'])->middleware('throttle:30,1,builds-save');
     Route::get('builds/{build}', [BuildController::class, 'show']);
     Route::put('builds/{build}', [BuildController::class, 'update']);
     Route::delete('builds/{build}', [BuildController::class, 'destroy']);
-    Route::post('builds/{build}/duplicate', [BuildController::class, 'duplicate'])->middleware('throttle:30,1');
+    Route::post('builds/{build}/duplicate', [BuildController::class, 'duplicate'])->middleware('throttle:30,1,builds-duplicate');
 });
 
 // Compatibility rule settings (switch rules on/off, change severity, tune numbers).
@@ -129,9 +131,9 @@ Route::middleware('auth:sanctum')->prefix('cart')->group(function () {
     Route::get('/', [CartController::class, 'show']);
     Route::delete('/', [CartController::class, 'clear']);
     Route::post('accept-prices', [CartController::class, 'acceptPrices']);
-    Route::post('products', [CartProductController::class, 'store'])->middleware('throttle:60,1');
-    Route::post('builds', [CartBuildController::class, 'store'])->middleware('throttle:30,1');
-    Route::put('items/{item}', [CartItemController::class, 'update'])->middleware('throttle:60,1');
+    Route::post('products', [CartProductController::class, 'store'])->middleware('throttle:60,1,cart-add-product');
+    Route::post('builds', [CartBuildController::class, 'store'])->middleware('throttle:30,1,cart-add-build');
+    Route::put('items/{item}', [CartItemController::class, 'update'])->middleware('throttle:60,1,cart-update-item');
     Route::delete('items/{item}', [CartItemController::class, 'destroy']);
 });
 
@@ -149,13 +151,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('addresses/{address}', [AddressController::class, 'update']);
     Route::delete('addresses/{address}', [AddressController::class, 'destroy']);
 
-    Route::post('checkout/preview', [CheckoutController::class, 'preview'])->middleware('throttle:60,1');
-    Route::post('checkout', [CheckoutController::class, 'place'])->middleware('throttle:20,1');
+    Route::post('checkout/preview', [CheckoutController::class, 'preview'])->middleware('throttle:60,1,checkout-preview');
+    Route::post('checkout', [CheckoutController::class, 'place'])->middleware('throttle:20,1,checkout');
 
     Route::get('orders', [OrderController::class, 'index']);
     Route::get('orders/{order}', [OrderController::class, 'show']);
-    Route::post('orders/{order}/cancel', [OrderController::class, 'cancel'])->middleware('throttle:20,1');
-    Route::post('orders/{order}/payments', [PaymentController::class, 'store'])->middleware('throttle:20,1');
+    Route::post('orders/{order}/cancel', [OrderController::class, 'cancel'])->middleware('throttle:20,1,order-cancel');
+    Route::post('orders/{order}/payments', [PaymentController::class, 'store'])->middleware('throttle:20,1,order-pay');
 });
 
 /*
@@ -167,9 +169,9 @@ Route::middleware('auth:sanctum')->group(function () {
 | page and exist only while the fake gateway is enabled (never in production).
 */
 
-Route::post('webhooks/{provider}', [PaymentWebhookController::class, 'handle'])->middleware('throttle:300,1');
+Route::post('webhooks/{provider}', [PaymentWebhookController::class, 'handle'])->middleware('throttle:300,1,webhooks');
 
-Route::prefix('fake-gateway')->middleware('throttle:60,1')->group(function () {
+Route::prefix('fake-gateway')->middleware('throttle:60,1,fake-gateway')->group(function () {
     Route::get('payments/{reference}', [FakeGatewayController::class, 'show']);
     Route::post('payments/{reference}/complete', [FakeGatewayController::class, 'complete']);
 });
