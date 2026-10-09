@@ -38,6 +38,7 @@ const router = () =>
       { path: '/builder/:id', name: 'builder-edit', component: PCBuilder },
       { path: '/login', name: 'login', component: { template: '<div />' } },
       { path: '/my-builds', name: 'my-builds', component: { template: '<div />' } },
+      { path: '/cart', name: 'cart', component: { template: '<div />' } },
     ],
   })
 
@@ -55,39 +56,43 @@ async function mountAt(path) {
   return { wrapper, r }
 }
 
-describe('PC builder page: saving', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-    vi.clearAllMocks()
-    localStorage.clear()
-    api.get.mockImplementation(async (url) => {
-      if (url === '/api/pc-builder/components') return { data: { data: SLOTS } }
-      if (url === '/api/builds/B1') {
-        return {
+// Shared by the describe blocks below: a fresh store, an empty draft, and an API that answers like Laravel would.
+function prepare() {
+  setActivePinia(createPinia())
+  vi.clearAllMocks()
+  localStorage.clear()
+  api.get.mockImplementation(async (url) => {
+    if (url === '/api/pc-builder/components') return { data: { data: SLOTS } }
+    if (url === '/api/builds/B1') {
+      return {
+        data: {
           data: {
-            data: {
-              id: 'B1',
-              name: 'Rig',
-              subtotal: money(50000),
-              issues: [],
-              items: [{ slot: 'cpu', quantity: 1, product: cpu }],
-            },
+            id: 'B1',
+            name: 'Rig',
+            subtotal: money(50000),
+            issues: [],
+            items: [{ slot: 'cpu', quantity: 1, product: cpu }],
           },
-        }
+        },
       }
-      throw new Error(`unexpected GET ${url}`)
-    })
-    api.post.mockImplementation(async (url) => {
-      if (url === '/api/builds') return { data: { data: { id: 'B1', name: 'Rig' } } }
-      return { data: { data: { items: [], subtotal: money(50000), issues: [], purchasable: true } } }
-    })
-    useAuthStore().user = { id: 1, name: 'Tester', roles: ['customer'], permissions: [] }
+    }
+    throw new Error(`unexpected GET ${url}`)
   })
+  api.post.mockImplementation(async (url) => {
+    if (url === '/api/builds') return { data: { data: { id: 'B1', name: 'Rig' } } }
+    return { data: { data: { items: [], subtotal: money(50000), issues: [], purchasable: true } } }
+  })
+  useAuthStore().user = { id: 1, name: 'Tester', roles: ['customer'], permissions: [] }
+}
 
-  afterEach(() => {
-    mounted.splice(0).forEach((wrapper) => wrapper.unmount())
-    document.body.innerHTML = ''
-  })
+const afterEachPage = () => {
+  mounted.splice(0).forEach((wrapper) => wrapper.unmount())
+  document.body.innerHTML = ''
+}
+
+describe('PC builder page: saving', () => {
+  beforeEach(prepare)
+  afterEach(afterEachPage)
 
   it('resets the builder after a new build is saved, and says it was saved', async () => {
     const { wrapper } = await mountAt('/builder')
@@ -231,5 +236,104 @@ describe('PC builder page: saving', () => {
     expect(wrapper.text()).toContain('Test CPU')
     expect(wrapper.text()).not.toContain('Saved as')
     expect(document.body.querySelector('[role=dialog]').textContent).toContain('You can save up to 25 builds.')
+  })
+})
+
+describe('PC builder page: adding the build to the cart', () => {
+  const CART = { items: [], item_count: 1, subtotal: money(50000), checkout_ready: true }
+  const addButton = (wrapper) => [...wrapper.findAll('button')].find((b) => b.text() === 'Add build to cart')
+
+  beforeEach(prepare)
+  afterEach(afterEachPage)
+
+  // Picks a part and waits until the server has confirmed the build, which is what enables "Add build to cart".
+  async function buildReady(path = '/builder') {
+    const mount = await mountAt(path)
+    const builder = usePcBuilderStore()
+    if (path === '/builder') builder.select('cpu', cpu)
+    await builder.validate()
+    await flushPromises()
+    return { ...mount, builder }
+  }
+
+  it('resets the builder once the PC is in the cart, and says so', async () => {
+    api.post.mockImplementation(async (url) => {
+      if (url === '/api/cart/builds') return { data: { data: CART } }
+      return { data: { data: { items: [], subtotal: money(50000), issues: [], purchasable: true } } }
+    })
+    const { wrapper, builder } = await buildReady()
+    expect(wrapper.text()).toContain('Test CPU')
+
+    await addButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/cart/builds',
+      expect.objectContaining({ items: [{ slot: 'cpu', product_id: 1, quantity: 1 }] }),
+    )
+    expect(builder.selectedCount).toBe(0)
+    expect(wrapper.text()).not.toContain('Test CPU')
+    expect(wrapper.text()).toContain('Nothing selected yet')
+    expect(JSON.parse(localStorage.getItem('hightech.builder.draft.v1')).selection).toEqual({})
+    // The customer is still told where the PC went, and the message goes away once they start a new build.
+    expect(wrapper.text()).toContain('Added to your cart.')
+    expect(wrapper.text()).toContain('View cart')
+
+    builder.select('cpu', cpu)
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Added to your cart.')
+  })
+
+  it('leaves a saved build being edited, and the saved build itself stays', async () => {
+    api.post.mockImplementation(async (url) => {
+      if (url === '/api/cart/builds') return { data: { data: CART } }
+      return { data: { data: { items: [], subtotal: money(50000), issues: [], purchasable: true } } }
+    })
+    const { wrapper, builder, r } = await buildReady('/builder/B1')
+    expect(builder.buildId).toBe('B1')
+
+    await addButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(builder.selectedCount).toBe(0)
+    expect(builder.buildId).toBeNull() // the next save would create a new build, not overwrite "Rig"
+    expect(r.currentRoute.value.name).toBe('builder')
+    expect(wrapper.text()).toContain('Added to your cart.')
+    expect(api.put).not.toHaveBeenCalled()
+  })
+
+  it('keeps the parts when the server refuses the build, so nothing is lost', async () => {
+    api.post.mockImplementation(async (url) => {
+      if (url === '/api/cart/builds') throw { message: 'Refused', errors: { build: ['The RAM is out of stock.'] } }
+      return { data: { data: { items: [], subtotal: money(50000), issues: [], purchasable: true } } }
+    })
+    const { wrapper, builder } = await buildReady()
+
+    await addButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(builder.selectedCount).toBe(1)
+    expect(wrapper.text()).toContain('Test CPU')
+    expect(wrapper.text()).toContain('The RAM is out of stock.')
+    expect(wrapper.text()).not.toContain('Added to your cart.')
+  })
+
+  it('keeps a part the customer changed while the request was still on its way', async () => {
+    let finish
+    api.post.mockImplementation((url) => {
+      if (url === '/api/cart/builds')
+        return new Promise((resolve) => (finish = () => resolve({ data: { data: CART } })))
+      return Promise.resolve({ data: { data: { items: [], subtotal: money(50000), issues: [], purchasable: true } } })
+    })
+    const { wrapper, builder } = await buildReady()
+
+    await addButton(wrapper).trigger('click')
+    builder.select('ram', { ...cpu, id: 2, name: 'Test RAM' }) // changed after the request left
+    finish()
+    await flushPromises()
+
+    expect(builder.selectedCount).toBe(2) // what is on screen was not what got added, so it is not wiped
+    expect(wrapper.text()).toContain('Test RAM')
+    expect(wrapper.text()).toContain('Added to your cart.')
   })
 })

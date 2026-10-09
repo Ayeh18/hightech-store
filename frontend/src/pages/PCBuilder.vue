@@ -71,19 +71,21 @@ async function init() {
 onMounted(init)
 watch(() => route.params.id, init)
 
-// The "saved" message has done its job once the customer changes the parts again. (Clearing the builder after a
-// new build is saved does not count: it leaves no parts selected, so the message stays.)
+// The "saved" and "added to cart" messages have done their job once the customer picks parts again. (Clearing the
+// builder after saving or adding does not count: it leaves no parts selected, so the message stays.)
 watch(
   () => builder.selection,
   () => {
-    if (builder.selectedCount > 0) savedName.value = ''
-    cartAdded.value = false
+    if (builder.selectedCount > 0) {
+      savedName.value = ''
+      cartAdded.value = false
+    }
     cartErrors.value = []
   },
 )
 
 // Add the PC to the cart. The browser sends only WHICH parts; the server re-checks that the build is complete,
-// in stock and compatible, and prices it itself. If it refuses, we show its reasons.
+// in stock and compatible, and prices it itself. If it refuses, we show its reasons and keep the parts.
 async function addToCart() {
   cartAdded.value = false
   cartErrors.value = []
@@ -95,7 +97,16 @@ async function addToCart() {
 
   addingToCart.value = true
   try {
-    await cart.addBuild({ items: builder.selectionPayload(), name: builder.buildName || undefined })
+    const sent = builder.selectionPayload()
+    await cart.addBuild({ items: sent, name: builder.buildName || undefined })
+
+    // The PC is now in the cart (and any saved copy stays under "My builds"), so give the customer a clean builder.
+    // If they changed a part while the request was in flight, what is on screen is no longer what was added: keep it.
+    if (JSON.stringify(builder.selectionPayload()) === JSON.stringify(sent)) {
+      savedName.value = ''
+      builder.clear()
+      if (route.name === 'builder-edit') router.replace({ name: 'builder' })
+    }
     cartAdded.value = true
   } catch (e) {
     const parsed = parseApiError(e)
