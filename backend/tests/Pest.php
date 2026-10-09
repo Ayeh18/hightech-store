@@ -32,6 +32,7 @@ use App\Models\Product;
 use App\Models\ProductSpecification;
 use App\Models\User;
 use App\Services\Payments\WebhookSigner;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 
 /** A product that belongs in a builder slot (the category for the slot is created once and reused). */
@@ -273,6 +274,22 @@ function fulfil(Order $order, string $upTo): Order
             'delivered' => test()->actingAs($staff)->postJson("/api/admin/orders/{$order->id}/shipment/delivered")->assertOk(),
         };
     }
+
+    return $order->fresh();
+}
+
+/*
+| Shared helpers for admin tests (dashboard, reports).
+*/
+
+/** A real paid order, then moved to the given UTC moment so reports can be tested on exact dates. */
+function paidOrderAt(string $utc, ?array $lines = null): Order
+{
+    $order = paidOrder(null, $lines);
+    $when = CarbonImmutable::parse($utc, 'UTC');
+
+    DB::table('orders')->where('id', $order->id)->update(['created_at' => $when, 'paid_at' => $when]);
+    DB::table('payments')->where('order_id', $order->id)->update(['paid_at' => $when]);
 
     return $order->fresh();
 }

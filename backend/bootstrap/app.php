@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Middleware\EnsureUserIsActive;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -20,6 +22,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Makes requests from the SPA (listed in SANCTUM_STATEFUL_DOMAINS) use cookies + sessions + CSRF.
         $middleware->statefulApi();
+
+        // Signs a deactivated user out on their next request, even if their session was already open.
+        $middleware->api(append: [EnsureUserIsActive::class]);
+        // Laravel runs authentication before middleware it does not know about. This one must run first, otherwise the
+        // request of a deactivated user would already be authenticated by the time it is signed out.
+        $middleware->prependToPriorityList(before: AuthenticatesRequests::class, prepend: EnsureUserIsActive::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

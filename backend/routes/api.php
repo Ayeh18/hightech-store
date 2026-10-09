@@ -1,9 +1,15 @@
 <?php
 
 use App\Http\Controllers\Api\Account\AddressController;
+use App\Http\Controllers\Api\Admin\AuditLogController;
+use App\Http\Controllers\Api\Admin\CouponController;
+use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\FulfilmentController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
+use App\Http\Controllers\Api\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Api\Admin\RefundController;
+use App\Http\Controllers\Api\Admin\ReportController;
+use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Cart\CartBuildController;
 use App\Http\Controllers\Api\Cart\CartController;
@@ -68,6 +74,38 @@ Route::middleware(['auth:sanctum', 'can:admin.access'])->prefix('admin')->group(
         Route::post('refunds/{refund}/retry', [RefundController::class, 'retry'])->middleware('throttle:30,1,admin-refund-retry');
         Route::post('payments/{payment}/refunds', [RefundController::class, 'issue'])->middleware('throttle:30,1,admin-refund-issue');
         Route::post('orders/{order}/cancel-and-refund', [RefundController::class, 'cancelOrder'])->middleware('throttle:30,1,admin-order-cancel');
+    });
+
+    // The dashboard and sales reports (staff and admins). Payment tables on the dashboard also need payments.view.
+    Route::middleware('can:reports.view')->group(function () {
+        Route::get('dashboard', [DashboardController::class, 'show']);
+        Route::get('reports/sales', [ReportController::class, 'sales']);
+        Route::get('reports/sales/export', [ReportController::class, 'export'])->middleware('throttle:20,1,admin-report-export');
+    });
+
+    // Every payment and its diary. Declared AFTER payments/needing-refund above, so that fixed address is matched first.
+    Route::middleware('can:payments.view')->group(function () {
+        Route::get('payments', [AdminPaymentController::class, 'index']);
+        Route::get('payments/{payment}', [AdminPaymentController::class, 'show']);
+    });
+
+    Route::middleware('can:users.manage')->group(function () {
+        Route::get('users', [UserController::class, 'index']);
+        Route::get('users/{user}', [UserController::class, 'show']);
+        Route::put('users/{user}/roles', [UserController::class, 'updateRoles'])->middleware('throttle:30,1,admin-user-roles');
+        Route::put('users/{user}/status', [UserController::class, 'updateStatus'])->middleware('throttle:30,1,admin-user-status');
+    });
+
+    Route::middleware('can:audit.view')->group(function () {
+        Route::get('audit-logs', [AuditLogController::class, 'index']);
+        Route::get('audit-logs/actions', [AuditLogController::class, 'actions']);
+    });
+
+    Route::middleware('can:coupons.manage')->group(function () {
+        Route::get('coupons', [CouponController::class, 'index']);
+        Route::post('coupons', [CouponController::class, 'store'])->middleware('throttle:30,1,admin-coupons');
+        Route::put('coupons/{coupon}', [CouponController::class, 'update'])->middleware('throttle:30,1,admin-coupons');
+        Route::delete('coupons/{coupon}', [CouponController::class, 'destroy'])->middleware('throttle:30,1,admin-coupons');
     });
 });
 

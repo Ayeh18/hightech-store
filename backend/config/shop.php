@@ -16,6 +16,9 @@ return [
     // How long an unpaid order holds its stock before it is cancelled and the stock is released.
     'payment_window_minutes' => 30,
 
+    // The shop's own clock. Timestamps are stored in UTC; reports group them into days as the shop (and its customers) see them.
+    'timezone' => env('SHOP_TIMEZONE', 'Asia/Kuala_Lumpur'),
+
     'max_addresses' => 10,
 
     // A customer can ask for a refund until this many days after their order was delivered.
