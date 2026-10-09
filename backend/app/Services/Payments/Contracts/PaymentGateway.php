@@ -3,9 +3,12 @@
 namespace App\Services\Payments\Contracts;
 
 use App\Services\Payments\Exceptions\InvalidWebhook;
+use App\Services\Payments\Exceptions\RefundRefused;
 use App\Services\Payments\GatewayEvent;
 use App\Services\Payments\PaymentRequest;
 use App\Services\Payments\PaymentSession;
+use App\Services\Payments\RefundRequest;
+use App\Services\Payments\RefundResult;
 
 /**
  * Everything the shop needs from a payment company. Each company (a real one, or our local simulator) gets one class
@@ -37,4 +40,12 @@ interface PaymentGateway
      * Returns null while the payment is still undecided.
      */
     public function fetchStatus(string $providerReference): ?GatewayEvent;
+
+    /**
+     * Gives money back to the customer. MUST be idempotent on `$request->idempotencyKey`: asking again with the same key
+     * returns the first answer instead of refunding a second time (a retry after a timeout is therefore always safe).
+     *
+     * @throws RefundRefused when the gateway refuses
+     */
+    public function refundPayment(RefundRequest $request): RefundResult;
 }

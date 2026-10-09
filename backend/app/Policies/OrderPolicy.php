@@ -24,6 +24,11 @@ class OrderPolicy
         return $this->owner($user, $order);
     }
 
+    public function requestRefund(User $user, Order $order): Response
+    {
+        return $this->owner($user, $order);
+    }
+
     private function owner(User $user, Order $order): Response
     {
         return $user->id === $order->user_id ? Response::allow() : Response::denyAsNotFound();

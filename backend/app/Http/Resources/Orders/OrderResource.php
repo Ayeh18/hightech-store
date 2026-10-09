@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
 
-/** A full order. Requires `items` and `payments` to be loaded. @mixin Order */
+/** A full order. Requires Order::DETAIL_RELATIONS to be loaded. @mixin Order */
 class OrderResource extends JsonResource
 {
     /** @return array<string, mixed> */
@@ -43,6 +43,14 @@ class OrderResource extends JsonResource
             'payment' => $this->payments->isNotEmpty() ? new PaymentResource($this->payments->first()) : null,
             // Money arrived that the order could not use (it had been cancelled): it will be refunded.
             'refund_pending' => $this->payments->contains(fn ($payment) => $payment->requires_refund),
+            'can_request_refund' => $this->canRequestRefund(),
+            'shipment' => $this->shipment ? new ShipmentResource($this->shipment) : null,
+            'refunds' => RefundResource::collection($this->refunds),
+            // The order's story, oldest first: placed, paid, packed, shipped...
+            'timeline' => $this->statusHistory->map(fn ($h) => [
+                'status' => ['value' => $h->to_status->value, 'label' => $h->to_status->label()],
+                'at' => $h->created_at->toIso8601String(),
+            ])->values()->all(),
             'expires_at' => $this->isUnpaid() ? $this->expires_at?->toIso8601String() : null,
             'cancelled_at' => $this->cancelled_at?->toIso8601String(),
             'paid_at' => $this->paid_at?->toIso8601String(),
@@ -55,7 +63,7 @@ class OrderResource extends JsonResource
      *
      * @return array<int, array<string, mixed>>
      */
-    private function lines(): array
+    protected function lines(): array
     {
         return $this->items
             ->groupBy(fn (OrderItem $item) => $item->build_group ?? "single-{$item->id}")
@@ -79,7 +87,7 @@ class OrderResource extends JsonResource
     }
 
     /** @return array<string, mixed> */
-    private function part(OrderItem $item): array
+    protected function part(OrderItem $item): array
     {
         return ['name' => $item->name, 'sku' => $item->sku, 'quantity' => $item->quantity, 'unit_price' => $item->unit_price];
     }

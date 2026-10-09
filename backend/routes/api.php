@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\Account\AddressController;
+use App\Http\Controllers\Api\Admin\FulfilmentController;
+use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
+use App\Http\Controllers\Api\Admin\RefundController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Cart\CartBuildController;
 use App\Http\Controllers\Api\Cart\CartController;
@@ -15,6 +18,7 @@ use App\Http\Controllers\Api\Catalog\SpecDefinitionController;
 use App\Http\Controllers\Api\Compatibility\CompatibilityRuleController;
 use App\Http\Controllers\Api\Orders\CheckoutController;
 use App\Http\Controllers\Api\Orders\OrderController;
+use App\Http\Controllers\Api\Orders\OrderRefundController;
 use App\Http\Controllers\Api\Orders\PaymentController;
 use App\Http\Controllers\Api\Payments\FakeGatewayController;
 use App\Http\Controllers\Api\Payments\PaymentWebhookController;
@@ -45,6 +49,26 @@ Route::prefix('auth')->group(function () {
 // Anything under /api/admin requires the "admin.access" permission (granted to admin and staff).
 Route::middleware(['auth:sanctum', 'can:admin.access'])->prefix('admin')->group(function () {
     Route::get('ping', fn () => response()->json(['message' => 'pong']));
+
+    // Getting orders to customers (staff and admins).
+    Route::middleware('can:orders.manage')->group(function () {
+        Route::get('orders', [AdminOrderController::class, 'index']);
+        Route::get('orders/{order}', [AdminOrderController::class, 'show']);
+        Route::post('orders/{order}/status', [FulfilmentController::class, 'advance'])->middleware('throttle:60,1,admin-order-status');
+        Route::post('orders/{order}/shipment', [FulfilmentController::class, 'ship'])->middleware('throttle:60,1,admin-order-ship');
+        Route::post('orders/{order}/shipment/delivered', [FulfilmentController::class, 'deliver'])->middleware('throttle:60,1,admin-order-deliver');
+    });
+
+    // Money going back to customers (admins only: it needs the refunds.manage permission).
+    Route::middleware('can:refunds.manage')->group(function () {
+        Route::get('refunds', [RefundController::class, 'index']);
+        Route::get('payments/needing-refund', [RefundController::class, 'needingRefund']);
+        Route::post('refunds/{refund}/approve', [RefundController::class, 'approve'])->middleware('throttle:30,1,admin-refund-approve');
+        Route::post('refunds/{refund}/reject', [RefundController::class, 'reject'])->middleware('throttle:30,1,admin-refund-reject');
+        Route::post('refunds/{refund}/retry', [RefundController::class, 'retry'])->middleware('throttle:30,1,admin-refund-retry');
+        Route::post('payments/{payment}/refunds', [RefundController::class, 'issue'])->middleware('throttle:30,1,admin-refund-issue');
+        Route::post('orders/{order}/cancel-and-refund', [RefundController::class, 'cancelOrder'])->middleware('throttle:30,1,admin-order-cancel');
+    });
 });
 
 /*
@@ -158,6 +182,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('orders/{order}', [OrderController::class, 'show']);
     Route::post('orders/{order}/cancel', [OrderController::class, 'cancel'])->middleware('throttle:20,1,order-cancel');
     Route::post('orders/{order}/payments', [PaymentController::class, 'store'])->middleware('throttle:20,1,order-pay');
+    Route::post('orders/{order}/refund-request', [OrderRefundController::class, 'store'])->middleware('throttle:10,1,order-refund-request');
 });
 
 /*

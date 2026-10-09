@@ -25,7 +25,7 @@ class OrderController extends Controller
     {
         Gate::authorize('view', $order);
 
-        return new OrderResource($order->load(['items', 'payments']));
+        return new OrderResource($order->load(Order::DETAIL_RELATIONS));
     }
 
     /** Cancel an unpaid order: its stock goes back on the shelf and any coupon is freed. */
@@ -33,6 +33,6 @@ class OrderController extends Controller
     {
         Gate::authorize('cancel', $order);
 
-        return new OrderResource($orders->cancel($order, $request->user(), 'Cancelled by customer')->load(['items', 'payments']));
+        return new OrderResource($orders->cancel($order, $request->user(), 'Cancelled by customer')->load(Order::DETAIL_RELATIONS));
     }
 }

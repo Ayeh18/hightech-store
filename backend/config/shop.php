@@ -18,6 +18,9 @@ return [
 
     'max_addresses' => 10,
 
+    // A customer can ask for a refund until this many days after their order was delivered.
+    'refund_window_days' => 14,
+
     // The address of the Vue app. Used in emails and in the address a customer is sent back to after paying.
     'frontend_url' => rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/'),
 ];

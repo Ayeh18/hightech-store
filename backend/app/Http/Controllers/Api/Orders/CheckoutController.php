@@ -7,6 +7,7 @@ use App\Http\Requests\Orders\CheckoutPreviewRequest;
 use App\Http\Requests\Orders\PlaceOrderRequest;
 use App\Http\Resources\Orders\CheckoutQuoteResource;
 use App\Http\Resources\Orders\OrderResource;
+use App\Models\Order;
 use App\Services\Orders\CheckoutService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -36,7 +37,7 @@ class CheckoutController extends Controller
             $request->input('idempotency_key'),
         );
 
-        return (new OrderResource($placed->order->load(['items', 'payments'])))
+        return (new OrderResource($placed->order->load(Order::DETAIL_RELATIONS)))
             ->response()
             ->setStatusCode($placed->created ? Response::HTTP_CREATED : Response::HTTP_OK);
     }

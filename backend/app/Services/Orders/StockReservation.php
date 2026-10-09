@@ -103,6 +103,36 @@ class StockReservation
         }
     }
 
+    /**
+     * Goods that were sold come back (an order cancelled before it shipped, or a returned parcel): stock goes up again,
+     * with a `return` line in each product's stock history.
+     *
+     * @param  array<int, int>  $demand  product id => units back on the shelf
+     */
+    public function restock(array $demand, Order $order, string $why): void
+    {
+        $rows = $this->lock($demand);
+
+        foreach ($demand as $productId => $units) {
+            $inventory = $rows->get($productId);
+
+            if ($inventory === null) {
+                continue; // the product no longer has stock tracking: nothing to put back
+            }
+
+            $inventory->update(['stock' => $inventory->stock + $units]);
+
+            InventoryMovement::create([
+                'product_id' => $productId,
+                'user_id' => auth()->id(),
+                'change' => $units,
+                'stock_after' => $inventory->stock,
+                'reason' => 'return',
+                'note' => "Order {$order->order_number}: {$why}",
+            ]);
+        }
+    }
+
     /** @param  array<int, int>  $demand */
     private function lock(array $demand)
     {

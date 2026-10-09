@@ -22,6 +22,7 @@ pest()->extend(TestCase::class)->in('Unit');
 use App\Enums\BuilderSlot;
 use App\Models\Address;
 use App\Models\Category;
+use App\Models\FakeGatewayPayment;
 use App\Models\Inventory;
 use App\Models\Order;
 use App\Models\Payment;
@@ -229,4 +230,49 @@ function gatewayPays(Payment $payment, ?string $eventId = null)
 function inventoryOf(Product|int $product): Inventory
 {
     return Inventory::where('product_id', $product instanceof Product ? $product->id : $product)->firstOrFail();
+}
+
+/*
+| Shared helpers for fulfilment and refund tests.
+*/
+
+/** A user with one role: 'customer', 'staff' (fulfilment) or 'admin' (fulfilment and refunds). */
+function withRole(string $role): User
+{
+    $user = User::factory()->create();
+    $user->assignRole($role);
+
+    return $user;
+}
+
+/** An order that has really been paid: placed through checkout, paid on the gateway, confirmed by its webhook. */
+function paidOrder(?User $user = null, ?array $lines = null): Order
+{
+    $order = unpaidOrder($user, $lines);
+    payFor($order)->assertCreated();
+    // The customer pays on the payment company's page: that is the company's own record of it...
+    FakeGatewayPayment::where('reference', paymentOf($order)->provider_reference)->update(['status' => 'succeeded']);
+    // ...and then the company calls the shop (nobody is logged in on a real webhook).
+    auth()->forgetGuards();
+    gatewayPays(paymentOf($order))->assertOk();
+
+    return $order->fresh();
+}
+
+/** Moves a paid order along the staff steps: 'processing', 'packed', 'shipped' or 'delivered'. */
+function fulfil(Order $order, string $upTo): Order
+{
+    $staff = withRole('staff');
+    $steps = ['processing', 'packed', 'shipped', 'delivered'];
+
+    foreach (array_slice($steps, 0, array_search($upTo, $steps, true) + 1) as $step) {
+        match ($step) {
+            'processing' => test()->actingAs($staff)->postJson("/api/admin/orders/{$order->id}/status", ['status' => 'PROCESSING'])->assertOk(),
+            'packed' => test()->actingAs($staff)->postJson("/api/admin/orders/{$order->id}/status", ['status' => 'PACKED'])->assertOk(),
+            'shipped' => test()->actingAs($staff)->postJson("/api/admin/orders/{$order->id}/shipment", ['carrier' => 'J&T Express', 'tracking_number' => 'JT123456789MY'])->assertOk(),
+            'delivered' => test()->actingAs($staff)->postJson("/api/admin/orders/{$order->id}/shipment/delivered")->assertOk(),
+        };
+    }
+
+    return $order->fresh();
 }

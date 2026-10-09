@@ -4,11 +4,15 @@ namespace App\Services\Payments\Gateways;
 
 use App\Enums\GatewayEventType;
 use App\Models\FakeGatewayPayment;
+use App\Models\FakeGatewayRefund;
 use App\Services\Payments\Contracts\PaymentGateway;
 use App\Services\Payments\Exceptions\InvalidWebhook;
+use App\Services\Payments\Exceptions\RefundRefused;
 use App\Services\Payments\GatewayEvent;
 use App\Services\Payments\PaymentRequest;
 use App\Services\Payments\PaymentSession;
+use App\Services\Payments\RefundRequest;
+use App\Services\Payments\RefundResult;
 use App\Services\Payments\WebhookSigner;
 use App\Support\Money;
 use Illuminate\Support\Str;
@@ -105,5 +109,35 @@ class FakeGateway implements PaymentGateway
             failureReason: $payment->status === 'failed' ? 'Declined (simulated)' : null,
             payload: ['source' => 'status lookup', 'status' => $payment->status],
         );
+    }
+
+    public function refundPayment(RefundRequest $request): RefundResult
+    {
+        // A repeat of a request we already answered gets the same answer, and nothing is refunded again.
+        if ($existing = FakeGatewayRefund::where('idempotency_key', $request->idempotencyKey)->first()) {
+            return new RefundResult($existing->reference);
+        }
+
+        $payment = FakeGatewayPayment::find($request->paymentReference);
+
+        if ($payment === null || $payment->status !== 'succeeded') {
+            throw new RefundRefused('FakePay: that payment was never completed, so there is nothing to refund.');
+        }
+
+        $alreadyRefunded = (int) FakeGatewayRefund::where('payment_reference', $payment->reference)->sum('amount');
+
+        if ($alreadyRefunded + $request->amount->sen > $payment->amount) {
+            throw new RefundRefused('FakePay: refunds would add up to more than was paid.');
+        }
+
+        $refund = FakeGatewayRefund::create([
+            'reference' => 'fakerefund_'.strtolower((string) Str::ulid()),
+            'payment_reference' => $payment->reference,
+            'idempotency_key' => $request->idempotencyKey,
+            'amount' => $request->amount->sen,
+            'status' => 'succeeded',
+        ]);
+
+        return new RefundResult($refund->reference);
     }
 }
