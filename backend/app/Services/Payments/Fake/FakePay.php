@@ -16,14 +16,18 @@ class FakePay
 {
     public const OUTCOMES = ['succeeded', 'failed', 'cancelled'];
 
-    /** @param  string  $outcome  succeeded | failed | cancelled */
-    public function complete(FakeGatewayPayment $payment, string $outcome): FakeGatewayPayment
+    /**
+     * @param  string  $outcome  succeeded | failed | cancelled
+     * @param  int|null  $paidAmount  sen. Only for "succeeded": pay something other than what was asked for (a test aid, so
+     *                                the admin reconciliation page has a real discrepancy to find)
+     */
+    public function complete(FakeGatewayPayment $payment, string $outcome, ?int $paidAmount = null): FakeGatewayPayment
     {
         if ($payment->status !== 'pending') {
             throw ValidationException::withMessages(['outcome' => 'This payment has already been completed.']);
         }
 
-        $payment->update(['status' => $outcome]);
+        $payment->update(['status' => $outcome, 'paid_amount' => $outcome === 'succeeded' ? $paidAmount : null]);
 
         DeliverFakeWebhook::dispatch($this->webhookBody($payment));
 
@@ -56,7 +60,7 @@ class FakePay
             'created' => time(),
             'data' => [
                 'reference' => $payment->reference,
-                'amount' => $payment->amount,
+                'amount' => $payment->paid_amount ?? $payment->amount,
                 'currency' => $payment->currency,
                 'method' => 'fakepay',
                 'failure_reason' => $payment->status === 'failed' ? 'Declined (simulated)' : null,

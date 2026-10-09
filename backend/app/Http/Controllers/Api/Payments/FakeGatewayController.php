@@ -37,8 +37,12 @@ class FakeGatewayController extends Controller
     {
         abort_unless($gateways->has('fake'), 404);
 
-        $data = $request->validate(['outcome' => ['required', 'string', Rule::in(FakePay::OUTCOMES)]]);
-        $payment = $fake->complete(FakeGatewayPayment::findOrFail($reference), $data['outcome']);
+        $data = $request->validate([
+            'outcome' => ['required', 'string', Rule::in(FakePay::OUTCOMES)],
+            // Pay a different amount than asked (sen), to see what reconciliation catches. Only a payment can have an amount.
+            'amount' => ['nullable', 'integer', 'min:1', 'max:100000000', 'prohibited_unless:outcome,succeeded'],
+        ]);
+        $payment = $fake->complete(FakeGatewayPayment::findOrFail($reference), $data['outcome'], $data['amount'] ?? null);
 
         return response()->json(['data' => ['status' => $payment->status, 'return_url' => $fake->returnUrl($payment)]]);
     }

@@ -13,6 +13,7 @@ export const ADMIN_NAV = [
       { label: 'Orders', to: '/admin/orders', permission: 'orders.manage' },
       { label: 'Refunds', to: '/admin/refunds', permission: 'refunds.manage' },
       { label: 'Payments', to: '/admin/payments', permission: 'payments.view' },
+      { label: 'Reconciliation', to: '/admin/reconciliation', permission: 'payments.view' },
     ],
   },
   {

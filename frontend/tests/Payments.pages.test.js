@@ -476,6 +476,37 @@ describe('the pretend payment page', () => {
     expect(wrapper.findAll('button').every((b) => b.attributes('disabled') !== undefined)).toBe(true) // no second click
   })
 
+  it('lets you pay a different amount, sent as sen, to see what reconciliation catches', async () => {
+    api.get.mockResolvedValue({ data: { data: page } })
+    api.post.mockResolvedValue({ data: { data: { status: 'succeeded', return_url: page.return_url } } })
+    await mountPage(FakeGateway, '/fake-gateway/fakepay_abc', '/fake-gateway/:reference')
+
+    const box = wrapper.find('#other-amount')
+    const pay = button('Pay this amount')
+    expect(pay.attributes('disabled')).toBeDefined() // nothing typed yet
+    await box.setValue('1,000.50')
+    await pay.trigger('click')
+    await flushPromises()
+
+    expect(api.post).toHaveBeenCalledWith('/api/fake-gateway/payments/fakepay_abc/complete', {
+      outcome: 'succeeded',
+      amount: 100050,
+    })
+    expect(redirectTo).toHaveBeenCalledWith(page.return_url)
+  })
+
+  it('does not send an amount that is not money', async () => {
+    api.get.mockResolvedValue({ data: { data: page } })
+    await mountPage(FakeGateway, '/fake-gateway/fakepay_abc', '/fake-gateway/:reference')
+
+    await wrapper.find('#other-amount').setValue('lots')
+    await button('Pay this amount').trigger('click')
+    await flushPromises()
+
+    expect(api.post).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Enter an amount in ringgit')
+  })
+
   it('shows the error and lets you choose again if completing fails', async () => {
     api.get.mockResolvedValue({ data: { data: page } })
     api.post.mockRejectedValue({ message: 'x', errors: { outcome: ['This payment has already been completed.'] } })

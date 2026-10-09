@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { api, parseApiError } from '@/lib/api'
+import { parseRinggit } from '@/lib/money'
 import { redirectTo } from '@/lib/redirect'
 
 /*
@@ -19,6 +20,7 @@ const notFound = ref(false)
 const error = ref('')
 const working = ref('') // the outcome being sent
 const actionError = ref('')
+const otherAmount = ref('')
 
 async function load() {
   loading.value = true
@@ -37,17 +39,31 @@ async function load() {
 
 onMounted(load)
 
-async function choose(outcome) {
+// An optional amount, in sen: pay something other than what was asked (a test aid for the shop's reconciliation page).
+async function choose(outcome, amount) {
   working.value = outcome
   actionError.value = ''
   try {
-    const { data } = await api.post(`/api/fake-gateway/payments/${route.params.reference}/complete`, { outcome })
+    const { data } = await api.post(
+      `/api/fake-gateway/payments/${route.params.reference}/complete`,
+      amount === undefined ? { outcome } : { outcome, amount },
+    )
     redirectTo(data.data.return_url) // back to the shop; the page unloads, so the buttons stay busy
   } catch (e) {
     const parsed = parseApiError(e)
     actionError.value = Object.values(parsed.errors).flat()[0] ?? parsed.message
     working.value = ''
   }
+}
+
+function payOther() {
+  const sen = parseRinggit(otherAmount.value)
+
+  if (!sen || sen < 1) {
+    actionError.value = 'Enter an amount in ringgit, for example 25.50'
+    return
+  }
+  choose('succeeded', sen)
 }
 
 const button =
@@ -126,6 +142,31 @@ const button =
           >
             {{ working === 'cancelled' ? 'Cancelling…' : 'Cancel and go back' }}
           </button>
+
+          <details class="rounded-lg border border-slate-200 p-3 text-sm" data-testid="different-amount">
+            <summary class="cursor-pointer font-medium text-slate-700">Test: pay a different amount</summary>
+            <p class="mt-2 text-xs text-slate-500">
+              Real customers sometimes pay less or more than asked. Try it to see how the shop's reconciliation page
+              catches it. The shop will not treat the order as paid.
+            </p>
+            <label for="other-amount" class="mt-2 block text-xs font-medium text-slate-700">Amount (RM)</label>
+            <input
+              id="other-amount"
+              v-model="otherAmount"
+              type="text"
+              inputmode="decimal"
+              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+              placeholder="25.50"
+            />
+            <button
+              type="button"
+              :class="[button, 'mt-2 bg-slate-700 text-white hover:bg-slate-800 focus-visible:outline-slate-500']"
+              :disabled="working !== '' || !otherAmount.trim()"
+              @click="payOther"
+            >
+              Pay this amount
+            </button>
+          </details>
 
           <p class="pt-2 text-xs text-slate-500">
             This is a simulator for development. No real money is charged and no card is needed.

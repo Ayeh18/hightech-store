@@ -3,12 +3,14 @@
 namespace App\Services\Payments\Gateways;
 
 use App\Enums\GatewayEventType;
+use App\Enums\GatewayPaymentState;
 use App\Models\FakeGatewayPayment;
 use App\Models\FakeGatewayRefund;
 use App\Services\Payments\Contracts\PaymentGateway;
 use App\Services\Payments\Exceptions\InvalidWebhook;
 use App\Services\Payments\Exceptions\RefundRefused;
 use App\Services\Payments\GatewayEvent;
+use App\Services\Payments\GatewayTransaction;
 use App\Services\Payments\PaymentRequest;
 use App\Services\Payments\PaymentSession;
 use App\Services\Payments\RefundRequest;
@@ -104,7 +106,7 @@ class FakeGateway implements PaymentGateway
             id: "status_{$payment->reference}_{$payment->status}",
             type: $type,
             providerReference: $payment->reference,
-            amount: Money::fromSen($payment->amount),
+            amount: Money::fromSen($payment->paid_amount ?? $payment->amount),
             method: 'fakepay',
             failureReason: $payment->status === 'failed' ? 'Declined (simulated)' : null,
             payload: ['source' => 'status lookup', 'status' => $payment->status],
@@ -139,5 +141,24 @@ class FakeGateway implements PaymentGateway
         ]);
 
         return new RefundResult($refund->reference);
+    }
+
+    public function fetchTransaction(string $providerReference): ?GatewayTransaction
+    {
+        $payment = FakeGatewayPayment::find($providerReference);
+
+        if ($payment === null) {
+            return null;
+        }
+
+        $state = GatewayPaymentState::from($payment->status);
+
+        return new GatewayTransaction(
+            $payment->reference,
+            $state,
+            // Once paid, the company holds what was really paid; before that, what was asked for.
+            Money::fromSen($state === GatewayPaymentState::Succeeded ? ($payment->paid_amount ?? $payment->amount) : $payment->amount),
+            Money::fromSen((int) FakeGatewayRefund::where('payment_reference', $payment->reference)->sum('amount')),
+        );
     }
 }

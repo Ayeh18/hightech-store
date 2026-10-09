@@ -36,9 +36,7 @@ class PaymentReconciler
 
         foreach ($payments as $payment) {
             try {
-                $event = $this->gateways->driver($payment->provider)->fetchStatus($payment->provider_reference);
-
-                if ($event !== null && $this->processor->handle($payment->provider, $event, 'reconcile') === WebhookOutcome::Processed) {
+                if ($this->reconcileOne($payment) === WebhookOutcome::Processed) {
                     $changed++;
                 }
             } catch (Throwable $e) {
@@ -47,5 +45,13 @@ class PaymentReconciler
         }
 
         return $changed;
+    }
+
+    /** Asks the gateway about one payment and applies its answer the same safe way a webhook would be. Null: nothing to apply yet. */
+    public function reconcileOne(Payment $payment): ?WebhookOutcome
+    {
+        $event = $this->gateways->driver($payment->provider)->fetchStatus((string) $payment->provider_reference);
+
+        return $event === null ? null : $this->processor->handle($payment->provider, $event, 'reconcile');
     }
 }

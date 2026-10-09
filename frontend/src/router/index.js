@@ -100,6 +100,12 @@ const routes = [
     meta: admin('payments.view'),
   },
   {
+    path: '/admin/reconciliation',
+    name: 'admin-reconciliation',
+    component: () => import('@/pages/admin/Reconciliation.vue'),
+    meta: admin('payments.view'),
+  },
+  {
     path: '/admin/payments/:id',
     name: 'admin-payment',
     component: () => import('@/pages/admin/PaymentDetail.vue'),
@@ -200,6 +206,7 @@ const TITLES = {
   'admin-audit': `Audit log · Admin · ${SITE}`,
   'admin-orders': `Orders · Admin · ${SITE}`,
   'admin-refunds': `Refunds · Admin · ${SITE}`,
+  'admin-reconciliation': `Reconciliation · Admin · ${SITE}`,
   'admin-payments': `Payments · Admin · ${SITE}`,
   'admin-payment': `Payment · Admin · ${SITE}`,
   'not-found': `Not found · ${SITE}`,

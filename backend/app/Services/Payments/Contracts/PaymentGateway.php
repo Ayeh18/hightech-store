@@ -5,6 +5,7 @@ namespace App\Services\Payments\Contracts;
 use App\Services\Payments\Exceptions\InvalidWebhook;
 use App\Services\Payments\Exceptions\RefundRefused;
 use App\Services\Payments\GatewayEvent;
+use App\Services\Payments\GatewayTransaction;
 use App\Services\Payments\PaymentRequest;
 use App\Services\Payments\PaymentSession;
 use App\Services\Payments\RefundRequest;
@@ -48,4 +49,10 @@ interface PaymentGateway
      * @throws RefundRefused when the gateway refuses
      */
     public function refundPayment(RefundRequest $request): RefundResult;
+
+    /**
+     * The payment company's own record of a payment (its amount, state and refunds), for reconciliation: comparing their
+     * books with ours. Null when the company has no such payment.
+     */
+    public function fetchTransaction(string $providerReference): ?GatewayTransaction;
 }

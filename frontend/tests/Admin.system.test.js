@@ -978,6 +978,7 @@ describe('the admin menu', () => {
       'Orders',
       'Refunds',
       'Payments',
+      'Reconciliation',
       'Products',
       'Brands & categories',
       'Compatibility rules',

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\FulfilmentController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\Admin\PaymentController as AdminPaymentController;
+use App\Http\Controllers\Api\Admin\ReconciliationController;
 use App\Http\Controllers\Api\Admin\RefundController;
 use App\Http\Controllers\Api\Admin\ReportController;
 use App\Http\Controllers\Api\Admin\UserController;
@@ -87,6 +88,8 @@ Route::middleware(['auth:sanctum', 'can:admin.access'])->prefix('admin')->group(
     Route::middleware('can:payments.view')->group(function () {
         Route::get('payments', [AdminPaymentController::class, 'index']);
         Route::get('payments/{payment}', [AdminPaymentController::class, 'show']);
+        Route::get('reconciliation', [ReconciliationController::class, 'index'])->middleware('throttle:20,1,admin-reconciliation');
+        Route::post('payments/{payment}/sync', [ReconciliationController::class, 'sync'])->middleware('throttle:30,1,admin-payment-sync');
     });
 
     Route::middleware('can:users.manage')->group(function () {
