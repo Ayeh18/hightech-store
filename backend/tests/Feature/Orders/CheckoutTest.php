@@ -447,7 +447,9 @@ describe('preview', function () {
             ->assertJsonPath('data.shipping_known', true)
             ->assertJsonPath('data.total.amount', 203500)
             ->assertJsonPath('data.can_place', true)
-            ->assertJsonPath('data.blockers', []);
+            ->assertJsonPath('data.blockers', [])
+            ->assertJsonPath('data.payment_window_minutes', 30)
+            ->assertJsonPath('data.free_shipping_over.amount', 300000);
 
         expect(Order::count())->toBe(0)->and(reserved($product))->toBe(0);
         cartOf($user)->assertJsonPath('data.item_count', 2);

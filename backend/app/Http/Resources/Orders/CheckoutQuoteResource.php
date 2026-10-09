@@ -20,6 +20,7 @@ class CheckoutQuoteResource extends JsonResource
             'shipping_known' => $this->shipping !== null,
             'total' => $this->total,
             'free_shipping_over' => Money::fromSen((int) config('shop.shipping.free_over')),
+            'payment_window_minutes' => (int) config('shop.payment_window_minutes'),
             'coupon' => [
                 'code' => $this->coupon?->code,
                 'applied' => $this->coupon !== null,

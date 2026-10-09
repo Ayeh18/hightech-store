@@ -1,4 +1,5 @@
 <script setup>
+import { RouterLink } from 'vue-router'
 import AlertMessage from '@/components/ui/AlertMessage.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
@@ -48,7 +49,12 @@ defineEmits(['accept-prices', 'clear'])
       <AlertMessage v-else-if="itemCount > 0" type="success">Everything in your cart is available.</AlertMessage>
     </div>
 
-    <BaseButton class="mt-4" block variant="ghost" :disabled="busy || itemCount === 0" @click="$emit('clear')">
+    <RouterLink v-if="checkoutReady && !busy" :to="{ name: 'checkout' }" class="mt-4 block">
+      <BaseButton block>Proceed to checkout</BaseButton>
+    </RouterLink>
+    <BaseButton v-else class="mt-4" block disabled>Proceed to checkout</BaseButton>
+
+    <BaseButton class="mt-2" block variant="ghost" :disabled="busy || itemCount === 0" @click="$emit('clear')">
       Clear cart
     </BaseButton>
   </section>

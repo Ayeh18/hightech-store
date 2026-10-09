@@ -3,21 +3,33 @@ import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/layouts/AppLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
+import { useAddressStore } from '@/stores/addresses'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
+import { useOrderStore } from '@/stores/orders'
 
 // Each route picks its layout in router/index.js via meta.layout (default: the main shell).
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const cart = useCartStore()
+const addresses = useAddressStore()
+const orders = useOrderStore()
 const layout = computed(() => (route.meta.layout === 'auth' ? AuthLayout : AppLayout))
 
-// The cart follows the login: load it when a customer is signed in, and forget it the moment they are not,
-// so one person's cart is never shown to the next person on the same browser.
+// The cart follows the login: load it when a customer is signed in, and forget it (and their addresses and orders) the
+// moment they are not, so one person's data is never shown to the next person on the same browser.
 watch(
   () => auth.isAuthenticated,
-  (signedIn) => (signedIn ? cart.fetch() : cart.reset()),
+  (signedIn) => {
+    if (signedIn) {
+      cart.fetch()
+    } else {
+      cart.reset()
+      addresses.reset()
+      orders.reset()
+    }
+  },
   { immediate: true },
 )
 

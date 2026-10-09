@@ -45,6 +45,7 @@ async function open() {
       { path: '/products', name: 'products', component: { template: '<div />' } },
       { path: '/products/:slug', name: 'product', component: { template: '<div />' } },
       { path: '/builder', name: 'builder', component: { template: '<div />' } },
+      { path: '/checkout', name: 'checkout', component: { template: '<div />' } },
     ],
   })
   router.push('/cart')

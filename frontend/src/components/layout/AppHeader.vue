@@ -13,6 +13,11 @@ const mainLinks = [
   { name: 'products', label: 'Shop' },
   { name: 'builder', label: 'PC Builder' },
 ]
+const accountLinks = [
+  { name: 'orders', label: 'My orders' },
+  { name: 'my-builds', label: 'My builds' },
+  { name: 'addresses', label: 'My addresses' },
+]
 const menuOpen = ref(false)
 const menuRoot = ref(null)
 
@@ -119,12 +124,14 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
             >
               <p class="truncate px-3 py-2 text-xs text-muted">{{ auth.user.email }}</p>
               <RouterLink
-                :to="{ name: 'my-builds' }"
+                v-for="link in accountLinks"
+                :key="link.name"
+                :to="{ name: link.name }"
                 role="menuitem"
                 class="block rounded-lg px-3 py-2 text-sm hover:bg-elevated"
                 @click="menuOpen = false"
               >
-                My builds
+                {{ link.label }}
               </RouterLink>
               <RouterLink
                 v-if="auth.can('admin.access')"

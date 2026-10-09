@@ -1,0 +1,20 @@
+// States and federal territories, for the delivery address form. Matches App\Enums\MalaysianState on the server,
+// which is what actually validates the value.
+export const MALAYSIAN_STATES = [
+  'Johor',
+  'Kedah',
+  'Kelantan',
+  'Kuala Lumpur',
+  'Labuan',
+  'Melaka',
+  'Negeri Sembilan',
+  'Pahang',
+  'Perak',
+  'Perlis',
+  'Pulau Pinang',
+  'Putrajaya',
+  'Sabah',
+  'Sarawak',
+  'Selangor',
+  'Terengganu',
+]

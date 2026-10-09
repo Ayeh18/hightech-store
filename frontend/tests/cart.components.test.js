@@ -186,7 +186,10 @@ describe('CartBuildLine', () => {
 
 describe('CartSummary', () => {
   it('shows the subtotal and item count', () => {
-    const wrapper = mount(CartSummary, { props: { subtotal: money(294690), itemCount: 3, checkoutReady: true } })
+    const wrapper = mount(CartSummary, {
+      props: { subtotal: money(294690), itemCount: 3, checkoutReady: true },
+      global,
+    })
 
     expect(wrapper.find('[data-testid=subtotal]').text()).toBe('RM 2946.90')
     expect(wrapper.find('[data-testid=item-count]').text()).toBe('3')
@@ -196,6 +199,7 @@ describe('CartSummary', () => {
   it('offers to accept new prices when they changed', async () => {
     const wrapper = mount(CartSummary, {
       props: { subtotal: money(100), itemCount: 1, checkoutReady: true, hasPriceChanges: true },
+      global,
     })
 
     expect(wrapper.text()).toContain('Some prices changed')
@@ -207,10 +211,10 @@ describe('CartSummary', () => {
   })
 
   it('says what to do when something blocks checkout, and stays quiet for an empty cart', () => {
-    const blocked = mount(CartSummary, { props: { subtotal: money(100), itemCount: 1, checkoutReady: false } })
+    const blocked = mount(CartSummary, { props: { subtotal: money(100), itemCount: 1, checkoutReady: false }, global })
     expect(blocked.text()).toContain('Fix the items marked in red')
 
-    const empty = mount(CartSummary, { props: { subtotal: null, itemCount: 0, checkoutReady: false } })
+    const empty = mount(CartSummary, { props: { subtotal: null, itemCount: 0, checkoutReady: false }, global })
     expect(empty.text()).not.toContain('Fix the items')
     expect(empty.text()).toContain('RM 0.00')
     expect(
@@ -219,5 +223,28 @@ describe('CartSummary', () => {
         .find((b) => b.text() === 'Clear cart')
         .attributes('disabled'),
     ).toBeDefined()
+  })
+})
+
+describe('CartSummary: checkout button', () => {
+  it('links to checkout when the cart is ready', () => {
+    const wrapper = mount(CartSummary, { props: { subtotal: money(100), itemCount: 1, checkoutReady: true }, global })
+
+    expect(wrapper.find('a').attributes('href')).toContain('checkout')
+    expect(wrapper.text()).toContain('Proceed to checkout')
+  })
+
+  it('is a disabled button, not a link, when something blocks checkout or the cart is busy or empty', () => {
+    for (const props of [
+      { subtotal: money(100), itemCount: 1, checkoutReady: false },
+      { subtotal: money(100), itemCount: 1, checkoutReady: true, busy: true },
+      { subtotal: null, itemCount: 0, checkoutReady: false },
+    ]) {
+      const wrapper = mount(CartSummary, { props, global })
+      const button = wrapper.findAll('button').find((b) => b.text() === 'Proceed to checkout')
+
+      expect(wrapper.find('a').exists()).toBe(false)
+      expect(button.attributes('disabled')).toBeDefined()
+    }
   })
 })
