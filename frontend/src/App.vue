@@ -3,6 +3,7 @@ import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/layouts/AppLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
+import GatewayLayout from '@/layouts/GatewayLayout.vue'
 import { useAddressStore } from '@/stores/addresses'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
@@ -15,7 +16,8 @@ const auth = useAuthStore()
 const cart = useCartStore()
 const addresses = useAddressStore()
 const orders = useOrderStore()
-const layout = computed(() => (route.meta.layout === 'auth' ? AuthLayout : AppLayout))
+const layouts = { auth: AuthLayout, gateway: GatewayLayout }
+const layout = computed(() => layouts[route.meta.layout] ?? AppLayout)
 
 // The cart follows the login: load it when a customer is signed in, and forget it (and their addresses and orders) the
 // moment they are not, so one person's data is never shown to the next person on the same browser.

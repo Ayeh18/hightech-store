@@ -35,11 +35,20 @@ export const useOrderStore = defineStore('orders', () => {
     return data.data
   }
 
+  /**
+   * "Pay now". The server decides the amount (the order's own total) and returns the payment with the address of the
+   * payment page. Asking again while a payment is waiting returns the same one.
+   */
+  async function startPayment(id) {
+    const { data } = await api.post(`/api/orders/${id}/payments`)
+    return data.data
+  }
+
   function reset() {
     orders.value = []
     loaded.value = false
     error.value = ''
   }
 
-  return { orders, meta, loading, loaded, error, fetchOrders, fetchOrder, cancel, reset }
+  return { orders, meta, loading, loaded, error, fetchOrders, fetchOrder, cancel, startPayment, reset }
 })

@@ -30,6 +30,19 @@ class FakePay
         return $payment;
     }
 
+    /**
+     * Where the customer is sent back to. Like real gateways, it says how the payment ended (`result=succeeded`). That
+     * is only a hint for the shop's page about whether to keep waiting; the order is only ever paid by the webhook.
+     */
+    public function returnUrl(FakeGatewayPayment $payment): string
+    {
+        if ($payment->status === 'pending') {
+            return $payment->return_url;
+        }
+
+        return $payment->return_url.(str_contains($payment->return_url, '?') ? '&' : '?').'result='.$payment->status;
+    }
+
     /** The JSON the webhook carries. Built once, so every retry of the delivery sends the very same event id. */
     public function webhookBody(FakeGatewayPayment $payment): string
     {

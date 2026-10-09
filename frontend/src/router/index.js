@@ -37,6 +37,13 @@ const routes = [
     component: () => import('@/pages/Addresses.vue'),
     meta: { requiresAuth: true },
   },
+  {
+    // The pretend payment company's page (local development only; the server answers 404 where it is switched off).
+    path: '/fake-gateway/:reference',
+    name: 'fake-gateway',
+    component: () => import('@/pages/FakeGateway.vue'),
+    meta: { layout: 'gateway' },
+  },
   { path: '/cart', name: 'cart', component: () => import('@/pages/Cart.vue'), meta: { requiresAuth: true } },
   {
     path: '/my-builds',
@@ -82,6 +89,7 @@ const TITLES = {
   cart: `Your cart · ${SITE}`,
   checkout: `Checkout · ${SITE}`,
   orders: `My orders · ${SITE}`,
+  'fake-gateway': 'FakePay · test payment page',
   addresses: `My addresses · ${SITE}`,
   login: `Log in · ${SITE}`,
   register: `Sign up · ${SITE}`,

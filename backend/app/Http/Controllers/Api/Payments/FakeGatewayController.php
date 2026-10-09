@@ -17,7 +17,7 @@ use Illuminate\Validation\Rule;
  */
 class FakeGatewayController extends Controller
 {
-    public function show(string $reference, GatewayManager $gateways): JsonResponse
+    public function show(string $reference, GatewayManager $gateways, FakePay $fake): JsonResponse
     {
         abort_unless($gateways->has('fake'), 404);
 
@@ -28,7 +28,7 @@ class FakeGatewayController extends Controller
             'description' => $payment->description,
             'amount' => Money::fromSen($payment->amount),
             'status' => $payment->status,
-            'return_url' => $payment->return_url,
+            'return_url' => $fake->returnUrl($payment),
         ]]);
     }
 
@@ -40,6 +40,6 @@ class FakeGatewayController extends Controller
         $data = $request->validate(['outcome' => ['required', 'string', Rule::in(FakePay::OUTCOMES)]]);
         $payment = $fake->complete(FakeGatewayPayment::findOrFail($reference), $data['outcome']);
 
-        return response()->json(['data' => ['status' => $payment->status, 'return_url' => $payment->return_url]]);
+        return response()->json(['data' => ['status' => $payment->status, 'return_url' => $fake->returnUrl($payment)]]);
     }
 }

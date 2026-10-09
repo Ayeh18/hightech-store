@@ -42,7 +42,8 @@ describe('the pretend payment page', function () {
 
         $this->postJson("/api/fake-gateway/payments/{$payment->provider_reference}/complete", ['outcome' => $outcome])->assertOk()
             ->assertJsonPath('data.status', $outcome)
-            ->assertJsonPath('data.return_url', "http://frontend.test/orders/{$order->id}?payment=return");
+            // The way back says how it ended (a hint for the page; only the webhook can mark the order paid).
+            ->assertJsonPath('data.return_url', "http://frontend.test/orders/{$order->id}?payment=return&result={$outcome}");
 
         expect(FakeGatewayPayment::find($payment->provider_reference)->status)->toBe($outcome);
         Queue::assertPushed(DeliverFakeWebhook::class, function (DeliverFakeWebhook $job) use ($event, $payment) {
