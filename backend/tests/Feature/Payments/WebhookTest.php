@@ -186,7 +186,9 @@ describe('a successful payment', function () {
             ->and(inventoryOf($product)->only(['stock', 'reserved']))->toBe(['stock' => 10, 'reserved' => 2]);
         expect(PaymentTransaction::where('payment_id', $payment->id)->where('type', 'AMOUNT_MISMATCH')->exists())->toBeTrue();
         expect(AuditLog::where('action', 'payment.amount_mismatch')->exists())->toBeTrue();
-        Notification::assertNothingSent();
+        // No payment emails (the "order received" one from checkout is a different matter).
+        Notification::assertNotSentTo($order->user, OrderPaid::class);
+        Notification::assertNotSentTo($order->user, PaymentFailed::class);
     })->with([
         'less (paid RM 1)' => [100],
         'more' => [999_999_999],
@@ -243,7 +245,8 @@ describe('a failed or cancelled payment', function () {
         expect($payment->fresh()->status)->toBe(PaymentStatus::Cancelled)
             ->and($order->fresh()->status)->toBe(OrderStatus::PendingPayment)
             ->and($order->fresh()->payment_status)->toBe(PaymentStatus::Pending);
-        Notification::assertNothingSent();
+        Notification::assertNotSentTo($order->user, OrderPaid::class);
+        Notification::assertNotSentTo($order->user, PaymentFailed::class);
         payFor($order)->assertCreated();
     });
 

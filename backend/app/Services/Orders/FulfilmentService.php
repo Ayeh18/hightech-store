@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Models\Order;
 use App\Models\Shipment;
 use App\Models\User;
+use App\Notifications\OrderDelivered;
 use App\Notifications\OrderShipped;
 use App\Services\AuditLogger;
 use Illuminate\Support\Facades\DB;
@@ -72,7 +73,7 @@ class FulfilmentService
     /** Shipped -> Delivered. The refund window for the customer starts counting from here. */
     public function markDelivered(Order $order, User $staff): Order
     {
-        return DB::transaction(function () use ($order, $staff) {
+        $result = DB::transaction(function () use ($order, $staff) {
             $locked = $this->lock($order);
             $this->require($locked, OrderStatus::Shipped, 'mark it delivered');
 
@@ -81,6 +82,14 @@ class FulfilmentService
 
             return $locked;
         });
+
+        try {
+            $result->user->notify(new OrderDelivered($result));
+        } catch (Throwable $e) {
+            report($e); // an email problem must not undo a delivery that already happened
+        }
+
+        return $result;
     }
 
     private function lock(Order $order): Order

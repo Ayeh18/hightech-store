@@ -9,6 +9,7 @@ use App\Models\Cart;
 use App\Models\CouponUsage;
 use App\Models\Order;
 use App\Models\User;
+use App\Notifications\OrderPlaced;
 use App\Services\AuditLogger;
 use App\Services\Cart\CartEvaluator;
 use App\Services\Cart\CartService;
@@ -19,6 +20,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use LogicException;
+use Throwable;
 
 /**
  * Turns a cart into an order.
@@ -76,6 +78,24 @@ class CheckoutService
      * @throws ValidationException
      */
     public function place(User $user, int $addressId, ?string $couponCode, ?string $notes, ?string $idempotencyKey): PlacedOrder
+    {
+        $placed = $this->createOrder($user, $addressId, $couponCode, $notes, $idempotencyKey);
+
+        // Only for an order that was really created now: a retry that was answered with the existing order stays quiet.
+        // And a mail problem must never undo an order that is already safely placed.
+        if ($placed->created) {
+            try {
+                $user->notify(new OrderPlaced($placed->order));
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
+
+        return $placed;
+    }
+
+    /** @throws ValidationException */
+    private function createOrder(User $user, int $addressId, ?string $couponCode, ?string $notes, ?string $idempotencyKey): PlacedOrder
     {
         $cart = $this->carts->cartFor($user);
 
