@@ -5,28 +5,9 @@ use App\Models\CartItem;
 use App\Models\Category;
 use App\Models\Inventory;
 use App\Models\Product;
-use App\Models\User;
 use App\Services\Cart\CartService;
 use App\Support\Money;
 use Illuminate\Database\QueryException;
-
-function shopper(): User
-{
-    $user = User::factory()->create();
-    $user->assignRole('customer');
-
-    return $user;
-}
-
-function addToCart(User $user, Product $product, int $quantity = 1)
-{
-    return test()->actingAs($user)->postJson('/api/cart/products', ['product_id' => $product->id, 'quantity' => $quantity]);
-}
-
-function cartOf(User $user)
-{
-    return test()->actingAs($user)->getJson('/api/cart');
-}
 
 it('requires login for every cart endpoint', function () {
     $item = CartItem::factory()->create();

@@ -25,6 +25,12 @@ services:
     command: php artisan queue:work --tries=3 --sleep=1
     restart: unless-stopped
 
+  # Runs the scheduled jobs (e.g. cancelling unpaid orders so their stock goes back on sale) once a minute.
+  scheduler:
+    <<: *php
+    command: php artisan schedule:work
+    restart: unless-stopped
+
   db:
     image: postgres:17-alpine
     environment:

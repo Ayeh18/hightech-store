@@ -1,0 +1,80 @@
+<?php
+
+namespace App\Http\Resources\Orders;
+
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Support\Money;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Collection;
+
+/** A full order. Requires `items` to be loaded. @mixin Order */
+class OrderResource extends JsonResource
+{
+    /** @return array<string, mixed> */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'order_number' => $this->order_number,
+            'status' => ['value' => $this->status->value, 'label' => $this->status->label()],
+            'payment_status' => ['value' => $this->payment_status->value, 'label' => $this->payment_status->label()],
+            'subtotal' => $this->subtotal,
+            'discount_total' => $this->discount_total,
+            'shipping_total' => $this->shipping_total,
+            'total' => $this->total,
+            'coupon_code' => $this->coupon_code,
+            'shipping_address' => [
+                'name' => $this->shipping_name,
+                'phone' => $this->shipping_phone,
+                'line1' => $this->shipping_line1,
+                'line2' => $this->shipping_line2,
+                'city' => $this->shipping_city,
+                'state' => $this->shipping_state,
+                'postcode' => $this->shipping_postcode,
+                'country' => $this->shipping_country,
+            ],
+            'notes' => $this->notes,
+            'lines' => $this->lines(),
+            'can_cancel' => $this->status->isCancellableByCustomer() && $this->isUnpaid(),
+            'expires_at' => $this->isUnpaid() ? $this->expires_at?->toIso8601String() : null,
+            'cancelled_at' => $this->cancelled_at?->toIso8601String(),
+            'placed_at' => $this->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * The order lines as the customer thinks of them: single products, and each PC with its parts together.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function lines(): array
+    {
+        return $this->items
+            ->groupBy(fn (OrderItem $item) => $item->build_group ?? "single-{$item->id}")
+            ->map(function (Collection $group) {
+                $first = $group->first();
+
+                if ($first->build_group === null) {
+                    return ['kind' => 'product', ...$this->part($first), 'line_total' => $first->line_total];
+                }
+
+                return [
+                    'kind' => 'build',
+                    'name' => $first->build_name,
+                    'copies' => $first->build_copies,
+                    'line_total' => Money::fromSen($group->sum(fn (OrderItem $i) => $i->line_total->sen)),
+                    'parts' => $group->map(fn (OrderItem $i) => ['slot' => $i->slot?->value, 'slot_label' => $i->slot?->label(), ...$this->part($i), 'line_total' => $i->line_total])->values()->all(),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /** @return array<string, mixed> */
+    private function part(OrderItem $item): array
+    {
+        return ['name' => $item->name, 'sku' => $item->sku, 'quantity' => $item->quantity, 'unit_price' => $item->unit_price];
+    }
+}

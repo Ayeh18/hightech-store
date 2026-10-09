@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Account\AddressController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Cart\CartBuildController;
 use App\Http\Controllers\Api\Cart\CartController;
@@ -12,6 +13,8 @@ use App\Http\Controllers\Api\Catalog\ProductController;
 use App\Http\Controllers\Api\Catalog\ProductImageController;
 use App\Http\Controllers\Api\Catalog\SpecDefinitionController;
 use App\Http\Controllers\Api\Compatibility\CompatibilityRuleController;
+use App\Http\Controllers\Api\Orders\CheckoutController;
+use App\Http\Controllers\Api\Orders\OrderController;
 use App\Http\Controllers\Api\PcBuilder\BuildController;
 use App\Http\Controllers\Api\PcBuilder\PcBuilderController;
 use Illuminate\Support\Facades\Route;
@@ -127,4 +130,26 @@ Route::middleware('auth:sanctum')->prefix('cart')->group(function () {
     Route::post('builds', [CartBuildController::class, 'store'])->middleware('throttle:30,1');
     Route::put('items/{item}', [CartItemController::class, 'update'])->middleware('throttle:60,1');
     Route::delete('items/{item}', [CartItemController::class, 'destroy']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Addresses, checkout and orders
+|--------------------------------------------------------------------------
+| Customers only. Checkout accepts choices (address, coupon code, note) and never a price: totals are calculated by
+| the server. Send an `Idempotency-Key` header with POST /checkout so a retry cannot create a second order.
+*/
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('addresses', [AddressController::class, 'index']);
+    Route::post('addresses', [AddressController::class, 'store']);
+    Route::put('addresses/{address}', [AddressController::class, 'update']);
+    Route::delete('addresses/{address}', [AddressController::class, 'destroy']);
+
+    Route::post('checkout/preview', [CheckoutController::class, 'preview'])->middleware('throttle:60,1');
+    Route::post('checkout', [CheckoutController::class, 'place'])->middleware('throttle:20,1');
+
+    Route::get('orders', [OrderController::class, 'index']);
+    Route::get('orders/{order}', [OrderController::class, 'show']);
+    Route::post('orders/{order}/cancel', [OrderController::class, 'cancel'])->middleware('throttle:20,1');
 });

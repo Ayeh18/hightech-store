@@ -6,53 +6,9 @@ use App\Models\CartItem;
 use App\Models\CartItemComponent;
 use App\Models\CompatibilityRule;
 use App\Models\Inventory;
-use App\Models\PcBuild;
-use App\Models\PcBuildItem;
 use App\Models\Product;
 use App\Models\ProductSpecification;
-use App\Models\User;
 use App\Support\Money;
-
-/**
- * A complete, compatible PC (AM5 + DDR5, a roomy case, a strong PSU), 20 of each part in stock.
- *
- * @return array<string, Product> keyed by slot value
- */
-function compatiblePc(): array
-{
-    return [
-        'cpu' => specPart(Slot::Cpu, ['socket' => 'AM5', 'tdp_watts' => 65, 'integrated_graphics' => 'Yes', 'cooler_included' => 'Yes'], 80000),
-        'motherboard' => specPart(Slot::Motherboard, ['socket' => 'AM5', 'ram_type' => 'DDR5', 'form_factor' => 'ATX', 'ram_slots' => 4, 'max_ram_gb' => 192, 'm2_slots' => 3], 60000),
-        'ram' => specPart(Slot::Ram, ['ram_type' => 'DDR5', 'modules' => 2, 'capacity_gb' => 32], 30000),
-        'storage' => specPart(Slot::Storage, ['form_factor' => 'M.2 2280'], 25000),
-        'psu' => specPart(Slot::Psu, ['wattage' => 750, 'form_factor' => 'ATX'], 40000),
-        'case' => specPart(Slot::Case_, ['supported_form_factors' => ['ATX'], 'gpu_max_length_mm' => 350, 'cpu_cooler_max_height_mm' => 170, 'psu_form_factor' => 'ATX'], 35000),
-    ];
-}
-
-function pcPayload(array $pc, array $extra = []): array
-{
-    return [
-        'items' => array_map(fn ($product, $slot) => buildItem(Slot::from($slot), $product), $pc, array_keys($pc)),
-        ...$extra,
-    ];
-}
-
-function addPc(User $user, array $pc, array $extra = [])
-{
-    return test()->actingAs($user)->postJson('/api/cart/builds', pcPayload($pc, $extra));
-}
-
-function savedPc(User $user, array $pc, string $name = 'Gaming PC'): PcBuild
-{
-    $build = PcBuild::factory()->for($user)->create(['name' => $name]);
-
-    foreach ($pc as $slot => $product) {
-        PcBuildItem::factory()->create(['pc_build_id' => $build->id, 'product_id' => $product->id, 'slot' => $slot]);
-    }
-
-    return $build;
-}
 
 it('adds a whole PC from the builder and stores its parts and prices as a snapshot', function () {
     $user = shopper();
