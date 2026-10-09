@@ -3,9 +3,9 @@
 A PC-hardware e-commerce platform with a compatibility-checked **PC Builder**, built with Laravel 13 (REST API),
 Vue 3 and PostgreSQL. Portfolio project, built phase by phase.
 
-> **Status:** Phases 1-5 complete: Docker environment, authentication and RBAC, audit logging, the product catalog,
-> the PC builder with saved builds, the compatibility engine, and the shopping cart (single products and whole PCs).
-> Checkout, payments and the admin screens follow in later phases.
+> **Status:** Phases 1-6 complete: Docker environment, authentication and RBAC, audit logging, the product catalog,
+> the PC builder with saved builds, the compatibility engine, the shopping cart, and checkout (addresses, coupons,
+> shipping, orders with stock reservation). Payments, order fulfilment and the admin screens follow in later phases.
 
 ## Stack
 
@@ -143,6 +143,41 @@ whole cart from the database on every read, and the cart responses always return
 | `POST /api/cart/accept-prices` | Re-snapshot prices so the warnings stop |
 
 A cart line belongs to one customer: anyone else gets a `404`.
+
+## Checkout and orders (Phase 6)
+
+`CheckoutService` turns the cart into an order **inside one database transaction**: either the whole order exists, or
+nothing changed. The browser only chooses (a saved address, a coupon code, an optional note). There is deliberately no
+field for a price: everything is calculated by the server from the cart as it is at that moment.
+
+1. Lock the customer's cart row (a second click waits, then finds the first order).
+2. Re-evaluate the cart: current prices, stock across all lines, withdrawn products, PC compatibility.
+3. Validate the coupon again (locking the coupon row so its last redemption cannot be used twice).
+4. Calculate shipping from the delivery address (West Malaysia RM 15, Sabah/Sarawak/Labuan RM 35, free from RM 3,000 after discounts; see `config/shop.php`).
+5. **Reserve stock** (`inventories.reserved`) under `SELECT ... FOR UPDATE`, locking rows in product-id order so two checkouts cannot deadlock. Not enough of anything refuses the whole order. A `CHECK (reserved <= stock)` is the last line of defence.
+6. Write the order and one line per product, with the **name, SKU and price as they were**. The parts of a PC share a `build_group`.
+7. Empty the cart.
+
+| Rule | How it is enforced |
+|---|---|
+| Totals add up | Money is integer sen; a database `CHECK` refuses an order where `total != subtotal - discount + shipping` |
+| No double orders | `POST /api/checkout` accepts an `Idempotency-Key` header; the same key returns the same order (`200`, not `201`) |
+| No overselling | Row locks plus the `reserved <= stock` constraint; the cart does not hold stock, the order does |
+| Orders are private | Anyone but the owner gets a `404` |
+| Two lifecycles | `orders.status` (what is happening to the goods) and `orders.payment_status` (the money) are separate columns; `OrderStatus::nextStatuses()` lists the only allowed moves |
+| Unpaid orders do not hold stock forever | They expire after 30 minutes. The `scheduler` container runs `orders:expire-unpaid` every minute, which cancels them and gives the stock and the coupon back, exactly once |
+| Order numbers | `ORD-2026-00001`, one atomic counter per year (no repeats, no gaps) |
+
+| Endpoint | Notes |
+|---|---|
+| `GET/POST /api/addresses` · `PUT/DELETE /api/addresses/{id}` | Address book (max 10, exactly one default, Malaysian states and 5-digit postcodes) |
+| `POST /api/checkout/preview` | `{address_id?, coupon_code?}`: what the order would cost. Saves nothing |
+| `POST /api/checkout` | `{address_id, coupon_code?, notes?}` + `Idempotency-Key` header. Refusals list their reasons (`errors.cart[]`, `errors.coupon_code`) |
+| `GET /api/orders` · `GET /api/orders/{id}` | My orders; one order with its lines grouped (a PC is one line with its parts) |
+| `POST /api/orders/{id}/cancel` | Only while unpaid. Releases stock and the coupon |
+
+Demo coupons (local only): `WELCOME10` (10% off orders over RM 1,000, once per customer) and `SAVE50` (RM 50 off orders over RM 500).
+Payment itself arrives in the next phase: until then an order waits for payment and is cancelled automatically when its window ends.
 
 ## Tests and quality checks
 
