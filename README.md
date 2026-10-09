@@ -3,9 +3,10 @@
 A PC-hardware e-commerce platform with a compatibility-checked **PC Builder**, built with Laravel 13 (REST API),
 Vue 3 and PostgreSQL. Portfolio project, built phase by phase.
 
-> **Status:** Phases 1-6 complete: Docker environment, authentication and RBAC, audit logging, the product catalog,
-> the PC builder with saved builds, the compatibility engine, the shopping cart, and checkout (addresses, coupons,
-> shipping, orders with stock reservation). Payments, order fulfilment and the admin screens follow in later phases.
+> **Status:** Phases 1-7 complete: Docker environment, authentication and RBAC, audit logging, the product catalog,
+> the PC builder with saved builds, the compatibility engine, the shopping cart, checkout (addresses, coupons,
+> shipping, orders with stock reservation), and payments (a gateway-agnostic payment layer with signed, idempotent
+> webhooks, plus a local fake gateway). Order fulfilment, refunds and the admin screens follow in later phases.
 
 ## Stack
 
@@ -14,7 +15,7 @@ Vue 3 and PostgreSQL. Portfolio project, built phase by phase.
 | API | Laravel 13, PHP 8.5, Sanctum (SPA cookie auth), Pest, Pint |
 | Frontend | Vue 3 (Composition API), Pinia, Vue Router, Axios, Tailwind CSS 4, Vite, Vitest |
 | Database | PostgreSQL 17 |
-| Dev environment | Docker Compose (app, queue worker, db, frontend, Mailpit) |
+| Dev environment | Docker Compose (app, queue worker, scheduler, db, frontend, Mailpit) |
 
 ## Quick start
 
@@ -177,7 +178,62 @@ field for a price: everything is calculated by the server from the cart as it is
 | `POST /api/orders/{id}/cancel` | Only while unpaid. Releases stock and the coupon |
 
 Demo coupons (local only): `WELCOME10` (10% off orders over RM 1,000, once per customer) and `SAVE50` (RM 50 off orders over RM 500).
-Payment itself arrives in the next phase: until then an order waits for payment and is cancelled automatically when its window ends.
+An order waits for payment (see the next section) and is cancelled automatically when its 30-minute window ends.
+
+## Payments (Phase 7)
+
+The shop only ever talks to a `PaymentGateway` **interface** (`createPayment`, `parseWebhook`, `fetchStatus`). Each
+payment company is one class that implements it, listed in `config/payments.php`; `PAYMENT_PROVIDER` picks which one is
+used. The included gateway is **`fake`**, a local simulator (see below). No real gateway is included: adding one means
+writing one class and one config line, and nothing else in the shop changes.
+
+**The journey**
+
+1. **Pay now** (`POST /api/orders/{id}/payments`, no body). The server creates a `payments` row for the order's **own
+   total** and asks the gateway for a payment page. The browser never sends an amount. Asking again while a page is
+   waiting returns the same one.
+2. The customer pays on the gateway's page and is sent back to `/orders/{id}?payment=return`.
+3. Meanwhile the gateway calls our **webhook** (`POST /api/webhooks/{provider}`). Only this can mark an order paid.
+   Coming back to the site proves nothing, so the order page shows "Confirming your payment…" and asks the server every
+   two seconds (for up to ~40 s) until the webhook has been processed.
+4. When it is processed: the payment and the order become `PAID`, the **reserved stock becomes sold stock** (`stock` and
+   `reserved` both go down, with a `sale` line in the stock history) and the customer gets an email.
+
+**What keeps it safe**
+
+| Risk | How it is handled |
+|---|---|
+| Someone forges a webhook | Every webhook carries `X-FakePay-Signature: t=<time>,v1=<HMAC-SHA256 of "time.body">` made with a shared secret (`PAYMENT_WEBHOOK_SECRET`). Wrong, missing or **older than 5 minutes** (replay) is refused with `401` before anything is read. Compared with `hash_equals` |
+| The same webhook arrives twice (gateways retry) | Each event is written to `webhook_events` (**unique `provider + event_id`**) in the *same transaction* as its effects. The second delivery finds the row and does nothing (`200 {"status":"duplicate"}`) |
+| Two events race, or arrive out of order | The order and then the payment are locked (always in that order, so no deadlock). Every move is checked against the payment's current state: a "failed" event after "paid" is ignored, a paid payment never goes back |
+| The gateway reports a different amount | Not accepted. The payment stays unpaid, an `AMOUNT_MISMATCH` line and an audit entry are written |
+| The processing crashes half way | The whole transaction rolls back, **including the "seen this event" row**, and the answer is `500`, so the gateway's retry is processed normally |
+| Customer pays *after* the order was cancelled or expired | The money is recorded as paid and flagged `requires_refund`; the order is **not** revived (its stock may be sold to someone else) and stock is untouched. The customer is told it will be refunded. Refunds themselves are Phase 8 |
+| Two payment pages for one order | A partial unique index allows only **one open payment per order** |
+| History being rewritten | `payment_transactions` is the payment's diary; a **database trigger** refuses any `UPDATE` or `DELETE` on it |
+| A webhook never arrives | `payments:reconcile` (every 5 minutes, run by the `scheduler`) asks the gateway about undecided payments, and recently closed ones, and feeds its answer through the same processor |
+| Rate limits | Each limited route has its own named counter (`throttle:20,1,checkout`). Without a name Laravel shares one counter per customer across **all** such routes |
+
+**The fake gateway ("FakePay")** plays the part of the payment company, locally and with no real money:
+
+- `createPayment` stores a pretend payment and returns a link to a payment page inside the Vue app (`/fake-gateway/{reference}`), styled differently from the shop on purpose.
+- The page offers **Pay successfully**, **Simulate a declined payment** and **Cancel and go back**.
+- The choice is recorded by the "company" (`/api/fake-gateway/...`), and then a queued job (`DeliverFakeWebhook`, run by the `queue` container) **POSTs a signed webhook to the shop**, with retries and the same event id each time. So the whole flow is real HTTP, a real signature check and a real queue.
+- It is refused (`404`) when `APP_ENV=production`, whatever the settings say.
+
+| Setting (`backend/.env`) | Meaning |
+|---|---|
+| `PAYMENT_PROVIDER` | Which gateway new payments use (`fake`) |
+| `PAYMENT_WEBHOOK_SECRET` | Shared secret for signing/checking webhooks. Any value for `fake`; a real gateway gives you one |
+| `PAYMENT_FAKE_WEBHOOK_URL` | Where the simulator delivers (inside Docker: `http://app:8000/api/webhooks/fake`) |
+
+Try it: place an order, press **Pay**, and choose an outcome. Emails appear in Mailpit (http://localhost:8025).
+
+| Endpoint | Notes |
+|---|---|
+| `POST /api/orders/{id}/payments` | Start (or resume) paying. `201` new, `200` the one already waiting, `422` with the reason otherwise |
+| `POST /api/webhooks/{provider}` | Called by the gateway. No login; the signature is the proof. Always `200` for anything that is not an error |
+| `GET/POST /api/fake-gateway/payments/{reference}[/complete]` | The simulator's payment page (development only) |
 
 ## Tests and quality checks
 
