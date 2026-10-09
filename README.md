@@ -3,11 +3,11 @@
 A PC-hardware e-commerce platform with a compatibility-checked **PC Builder**, built with Laravel 13 (REST API),
 Vue 3 and PostgreSQL. Portfolio project, built phase by phase.
 
-> **Status:** Phases 1-8 complete: Docker environment, authentication and RBAC, audit logging, the product catalog,
+> **Status:** Phases 1-9 complete: Docker environment, authentication and RBAC, audit logging, the product catalog,
 > the PC builder with saved builds, the compatibility engine, the shopping cart, checkout (addresses, coupons,
 > shipping, orders with stock reservation), and payments (a gateway-agnostic payment layer with signed, idempotent
-> webhooks, plus a local fake gateway), and order management (fulfilment, shipments, refunds). The admin screens
-> that use these APIs follow in the next phase.
+> webhooks, plus a local fake gateway), order management (fulfilment, shipments, refunds), and the admin area (dashboard, reports, payment
+> reconciliation, products and stock, coupons, users, audit log). Quality work, API docs and CI come next.
 
 ## Stack
 
@@ -291,6 +291,88 @@ Late payments are refunded from the same screen: a payment that arrived after it
 
 The fake gateway implements refunds too (`fake_gateway_refunds`, with the idempotency key as a unique column). Real gateways
 can answer a refund with "pending" and confirm later by webhook; this phase handles the immediate answer only.
+
+## Admin area (Phase 9)
+
+Sign in as a demo admin (local development only, see the demo accounts above) and open **/admin**. The menu shows only
+what the signed-in person's permissions allow, and the API checks every request again, so hiding a link is a convenience,
+never the protection.
+
+| Page | Permission | What it is for |
+|---|---|---|
+| Dashboard | `reports.view` | Cards (sales, orders, pending payments, products, low stock, customers), sales and orders over time, top products, revenue by category, recent orders, low-stock products, recent and failed payments |
+| Sales reports | `reports.view` | Any period up to a year, day by day, what sold, by category, and a **CSV download** |
+| Orders / Refunds | `orders.manage` / `refunds.manage` | Pack, ship, deliver, cancel and refund; the refund queue (Phase 8) |
+| Payments | `payments.view` | Every payment attempt and its **diary** (every step, never edited) |
+| Reconciliation | `payments.view` | Our books against the payment company's (below) |
+| Products | `products.manage` | Create and edit with the category's own specification boxes, photos, stock |
+| Brands & categories | `brands.manage` / `categories.manage` | Including each category's specification definitions, which drive the shop's filters and the PC builder |
+| Compatibility rules | `compatibility.manage` | Switch a rule off, make it a warning, change its numbers |
+| Coupons | `coupons.manage` | Percentage or fixed, minimum order, cap, dates, limits |
+| Users | `users.manage` | Roles, and deactivating an account |
+| Audit log | `audit.view` | Who did what, filterable. Read-only |
+
+Staff (`orders.manage`, catalog, stock, reports) cannot see payments, refunds, users, coupons or the audit log.
+
+**What "sales" means.** *Net sales* = money received minus money refunded, each counted on the day it happened, in
+**Malaysian time** (`SHOP_TIMEZONE`, default `Asia/Kuala_Lumpur`): an order paid at 1 am on the 20th belongs to the 20th,
+even though it is still the 19th in UTC. A payment that arrived too late for its order is held for a refund and is not a sale.
+
+**Typing money and times.** Admins type ringgit (`1,599.00`) and percentages (`12.5`); the browser turns them into whole sen
+and basis points from the digits as text, never through floating-point, so `19.99` can never become `1998.9999`. Coupon
+dates are entered in Malaysian time and sent as exact moments.
+
+### Payment reconciliation
+
+*Do our books and the payment company's agree?* For every payment sent to a gateway in the chosen period (up to 31 days)
+the shop asks the gateway for **its own record** (what it received, the state, what it refunded) and compares it with ours
+and with the order. Each disagreement is listed in words. A payment that agrees is `MATCHED`; any difference is a
+`RECONCILIATION ERROR`. The summary shows what the company received against what we recorded, like a bank reconciliation.
+
+| It notices | Example | What can be done |
+|---|---|---|
+| Different amounts | Gateway received RM 4,602.00, the payment is for RM 4,502.00 | Nothing automatic: a person must look. The shop never accepts a wrong amount |
+| A missed payment notice | Gateway says paid, we say waiting | **Ask the payment company again** applies its answer through the same idempotent processor a webhook uses |
+| A failure or cancellation we never heard about | Gateway says failed, we say waiting | Same button |
+| We say paid, the gateway disagrees | | A person (nothing is changed behind anyone's back) |
+| Refunds on one side only | Gateway refunded RM 70.00, we have none | A person |
+| No record, or the gateway cannot be reached | | Reported, not hidden |
+| Our own books disagree | The payment is not for the order's total | A person |
+
+**To see an error yourself** (fake gateway, local): place an order, press **Pay**, and on the FakePay page open
+**"Test: pay a different amount"**, enter less than was asked and pay. The shop refuses to treat the order as paid
+(`AMOUNT_MISMATCH` in the payment's diary), and the Reconciliation page shows both amounts and the error.
+
+### Guard rails
+
+- Nobody can change **their own roles** or deactivate themselves, and the **last active admin** can never lose the role or be deactivated (so the shop cannot lock itself out).
+- Deactivating a user **signs them out immediately** (their sessions are removed, and a middleware that runs *before* authentication refuses their next request even if a session is still open).
+- A coupon that has been used on an order **cannot be deleted**, only switched off, because past orders refer to it.
+- A refund request must be decided before any smaller refund is made on the same payment.
+- Specification keys and types cannot change once created, because products already hold values under them.
+
+### Adding a product (and its photos)
+
+**Products -> New product.** Choose the category first: the specification boxes below it come from that category's definitions.
+Save, then add photos (JPG/PNG/WebP, up to 8, re-saved as safe WebP) and check the stock on the same page. Photos are
+stored on the server's own disk for now (`storage/app/public`); moving them to cloud storage with a CDN is a small change
+planned for later (the database holds only each photo's path).
+
+### Notifications
+
+Customers are emailed when an order is **placed**, **paid**, **shipped**, **delivered**, when a payment **fails**, and when a
+refund is **approved or declined**. People who hold `inventory.manage` are emailed when a product **drops to its alert level**
+(only the moment it crosses, not on every sale). All are queued and sent after the database change is safely committed.
+
+| Endpoint (all under `/api/admin`) | Permission |
+|---|---|
+| `GET dashboard?days=7\|30\|90` | `reports.view` |
+| `GET reports/sales?from&to` · `GET reports/sales/export?from&to` (CSV) | `reports.view` |
+| `GET payments` · `GET payments/{id}` | `payments.view` |
+| `GET reconciliation?from&to` · `POST payments/{id}/sync` | `payments.view` |
+| `GET users` · `GET users/{id}` · `PUT users/{id}/roles` · `PUT users/{id}/status` | `users.manage` |
+| `GET audit-logs` · `GET audit-logs/actions` | `audit.view` |
+| `GET/POST coupons` · `PUT/DELETE coupons/{id}` | `coupons.manage` |
 
 ## Tests and quality checks
 
