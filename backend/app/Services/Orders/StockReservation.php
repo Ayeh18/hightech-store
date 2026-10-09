@@ -3,8 +3,11 @@
 namespace App\Services\Orders;
 
 use App\Models\Inventory;
+use App\Models\InventoryMovement;
+use App\Models\Order;
 use App\Models\Product;
 use Illuminate\Validation\ValidationException;
+use LogicException;
 
 /**
  * Holds stock for an unpaid order by raising `reserved` (available = stock - reserved), and gives it back.
@@ -62,6 +65,41 @@ class StockReservation
             if ($inventory) {
                 $inventory->update(['reserved' => max(0, $inventory->reserved - $units)]);
             }
+        }
+    }
+
+    /**
+     * The order has been paid: the reserved units are now SOLD. Stock goes down by the units and the reservation is
+     * released by the same amount (so `available` does not change, it was already held for this order), and every
+     * product gets a line in its stock history. Both columns change in one UPDATE, so reserved <= stock always holds.
+     *
+     * @param  array<int, int>  $demand  product id => units sold
+     */
+    public function commit(array $demand, Order $order): void
+    {
+        $rows = $this->lock($demand);
+
+        foreach ($demand as $productId => $units) {
+            $inventory = $rows->get($productId);
+
+            if ($inventory === null || $inventory->stock < $units) {
+                // The units were reserved when the order was placed, so this means data was changed behind our back.
+                throw new LogicException("Cannot sell {$units} of product {$productId} for {$order->order_number}: not enough stock.");
+            }
+
+            $inventory->update([
+                'stock' => $inventory->stock - $units,
+                'reserved' => max(0, $inventory->reserved - $units),
+            ]);
+
+            InventoryMovement::create([
+                'product_id' => $productId,
+                'user_id' => null,
+                'change' => -$units,
+                'stock_after' => $inventory->stock,
+                'reason' => 'sale',
+                'note' => "Order {$order->order_number}",
+            ]);
         }
     }
 

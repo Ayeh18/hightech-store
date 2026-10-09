@@ -36,7 +36,7 @@ class CheckoutController extends Controller
             $request->input('idempotency_key'),
         );
 
-        return (new OrderResource($placed->order->load('items')))
+        return (new OrderResource($placed->order->load(['items', 'payments'])))
             ->response()
             ->setStatusCode($placed->created ? Response::HTTP_CREATED : Response::HTTP_OK);
     }

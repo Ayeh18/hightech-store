@@ -17,4 +17,7 @@ return [
     'payment_window_minutes' => 30,
 
     'max_addresses' => 10,
+
+    // The address of the Vue app. Used in emails and in the address a customer is sent back to after paying.
+    'frontend_url' => rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/'),
 ];

@@ -29,6 +29,10 @@
         <env name="MAIL_MAILER" value="array" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>
         <env name="SESSION_DRIVER" value="array" force="true"/>
+        <env name="PAYMENT_PROVIDER" value="fake" force="true"/>
+        <env name="PAYMENT_WEBHOOK_SECRET" value="test-webhook-secret" force="true"/>
+        <env name="PAYMENT_FAKE_WEBHOOK_URL" value="http://shop.test/api/webhooks/fake" force="true"/>
+        <env name="FRONTEND_URL" value="http://frontend.test" force="true"/>
         <env name="PULSE_ENABLED" value="false" force="true"/>
         <env name="TELESCOPE_ENABLED" value="false" force="true"/>
         <env name="NIGHTWATCH_ENABLED" value="false" force="true"/>

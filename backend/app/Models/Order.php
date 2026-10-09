@@ -18,7 +18,7 @@ use LogicException;
 #[Fillable([
     'order_number', 'user_id', 'status', 'payment_status', 'subtotal', 'discount_total', 'shipping_total', 'total', 'currency',
     'coupon_id', 'coupon_code', 'shipping_name', 'shipping_phone', 'shipping_line1', 'shipping_line2', 'shipping_city',
-    'shipping_state', 'shipping_postcode', 'shipping_country', 'notes', 'idempotency_key', 'expires_at', 'cancelled_at',
+    'shipping_state', 'shipping_postcode', 'shipping_country', 'notes', 'idempotency_key', 'expires_at', 'cancelled_at', 'paid_at',
 ])]
 class Order extends Model
 {
@@ -36,6 +36,7 @@ class Order extends Model
             'total' => MoneyCast::class,
             'expires_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'paid_at' => 'datetime',
         ];
     }
 
@@ -57,6 +58,17 @@ class Order extends Model
     public function couponUsage(): HasOne
     {
         return $this->hasOne(CouponUsage::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class)->latest('created_at')->latest('id');
+    }
+
+    /** Can the customer start (or restart) a payment right now? Unpaid, and still inside the payment window. */
+    public function canBePaid(): bool
+    {
+        return $this->isUnpaid() && $this->expires_at !== null && $this->expires_at->isFuture();
     }
 
     /** Nothing has been paid yet, so the stock it holds can still be given back. */

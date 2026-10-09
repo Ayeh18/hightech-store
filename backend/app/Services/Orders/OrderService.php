@@ -4,7 +4,10 @@ namespace App\Services\Orders;
 
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\PaymentTransactionType;
 use App\Models\Order;
+use App\Models\Payment;
+use App\Models\PaymentTransaction;
 use App\Models\User;
 use App\Services\AuditLogger;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +41,20 @@ class OrderService
             $this->stock->release($demand);
 
             $locked->couponUsage?->update(['released_at' => now()]);
+
+            // A payment page that is still waiting is closed too. (If the customer pays on it anyway, the money is
+            // recorded and flagged for a refund; see PaymentProcessor.)
+            Payment::where('order_id', $locked->id)->where('status', PaymentStatus::Pending->value)->lockForUpdate()->get()
+                ->each(function (Payment $payment) use ($reason) {
+                    $payment->fill(['status' => PaymentStatus::Cancelled, 'cancelled_at' => now()])->save();
+                    PaymentTransaction::create([
+                        'payment_id' => $payment->id,
+                        'type' => PaymentTransactionType::Cancelled,
+                        'status_before' => PaymentStatus::Pending->value,
+                        'status_after' => PaymentStatus::Cancelled->value,
+                        'note' => "Order cancelled: {$reason}",
+                    ]);
+                });
 
             $from = $locked->status;
             $locked->moveTo(OrderStatus::Cancelled);

@@ -20,12 +20,18 @@ pest()->extend(TestCase::class)->in('Unit');
 */
 
 use App\Enums\BuilderSlot;
+use App\Models\Address;
 use App\Models\Category;
+use App\Models\Inventory;
+use App\Models\Order;
+use App\Models\Payment;
 use App\Models\PcBuild;
 use App\Models\PcBuildItem;
 use App\Models\Product;
 use App\Models\ProductSpecification;
 use App\Models\User;
+use App\Services\Payments\WebhookSigner;
+use Illuminate\Support\Str;
 
 /** A product that belongs in a builder slot (the category for the slot is created once and reused). */
 function partFor(BuilderSlot $slot, int $sen = 10000, array $attributes = []): Product
@@ -146,4 +152,81 @@ function savedPc(User $user, array $pc, string $name = 'Gaming PC'): PcBuild
     }
 
     return $build;
+}
+
+/*
+| Shared helpers for payment tests. An order is placed through the real checkout API (so stock is reserved exactly as in
+| production), and webhooks are posted signed with the test secret from phpunit.xml.
+*/
+
+/**
+ * A real unpaid order. Returns the order; its product is `$order->items->first()->product`.
+ *
+ * @param  array<int, array{0: Product, 1: int}>|null  $lines  product => quantity pairs (default: one new product)
+ */
+function unpaidOrder(?User $user = null, ?array $lines = null, array $extra = []): Order
+{
+    $user ??= shopper();
+    $lines ??= [[Product::factory()->priced(100000)->stock(10)->create(), 1]];
+
+    foreach ($lines as [$product, $quantity]) {
+        addToCart($user, $product, $quantity)->assertCreated();
+    }
+
+    $address = Address::factory()->for($user)->create();
+    $id = test()->actingAs($user)->postJson('/api/checkout', ['address_id' => $address->id, ...$extra])->assertCreated()->json('data.id');
+
+    return Order::findOrFail($id);
+}
+
+/** "Pay now": the customer asks for a payment page for the order. */
+function payFor(Order $order, ?User $as = null)
+{
+    return test()->actingAs($as ?? $order->user)->postJson("/api/orders/{$order->id}/payments");
+}
+
+/** The order's open payment, created by payFor(). */
+function paymentOf(Order $order): Payment
+{
+    return Payment::where('order_id', $order->id)->latest('created_at')->latest('id')->firstOrFail();
+}
+
+/** The JSON a gateway would send. `$amount` defaults to what the payment was created for. */
+function webhookBody(Payment $payment, string $type = 'payment.succeeded', ?int $amount = null, ?string $eventId = null, array $data = []): string
+{
+    return json_encode([
+        'id' => $eventId ?? 'evt_'.Str::lower((string) Str::ulid()),
+        'type' => $type,
+        'created' => time(),
+        'data' => [
+            'reference' => $payment->provider_reference,
+            'amount' => $amount ?? $payment->amount->sen,
+            'currency' => 'MYR',
+            'method' => 'fakepay',
+            ...$data,
+        ],
+    ], JSON_THROW_ON_ERROR);
+}
+
+/** Posts a webhook to the shop signed the way the gateway signs it. */
+function sendWebhook(string $body, ?int $timestamp = null, string $secret = 'test-webhook-secret', ?string $signature = null, string $provider = 'fake')
+{
+    $signature ??= (new WebhookSigner)->sign($body, $secret, $timestamp ?? time());
+
+    return test()->call('POST', "/api/webhooks/{$provider}", [], [], [], [
+        'CONTENT_TYPE' => 'application/json',
+        'HTTP_ACCEPT' => 'application/json',
+        'HTTP_X_FAKEPAY_SIGNATURE' => $signature,
+    ], $body);
+}
+
+/** The gateway tells the shop the payment succeeded. */
+function gatewayPays(Payment $payment, ?string $eventId = null)
+{
+    return sendWebhook(webhookBody($payment, 'payment.succeeded', null, $eventId));
+}
+
+function inventoryOf(Product|int $product): Inventory
+{
+    return Inventory::where('product_id', $product instanceof Product ? $product->id : $product)->firstOrFail();
 }

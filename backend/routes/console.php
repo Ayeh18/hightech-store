@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Unpaid orders hold stock. Give it back once their payment window has passed.
 Schedule::command('orders:expire-unpaid')->everyMinute()->withoutOverlapping();
+
+// Catch up on payments whose webhook never arrived, by asking the gateway directly.
+Schedule::command('payments:reconcile')->everyFiveMinutes()->withoutOverlapping();

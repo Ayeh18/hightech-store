@@ -1,15 +1,9 @@
 <?php
 
-use App\Models\Inventory;
 use App\Models\Product;
 use App\Services\Orders\StockReservation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-
-function inventoryOf(Product $product): Inventory
-{
-    return Inventory::where('product_id', $product->id)->firstOrFail();
-}
 
 it('reserves units and leaves stock alone', function () {
     $product = Product::factory()->stock(10)->create();

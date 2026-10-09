@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
 
-/** A full order. Requires `items` to be loaded. @mixin Order */
+/** A full order. Requires `items` and `payments` to be loaded. @mixin Order */
 class OrderResource extends JsonResource
 {
     /** @return array<string, mixed> */
@@ -38,8 +38,14 @@ class OrderResource extends JsonResource
             'notes' => $this->notes,
             'lines' => $this->lines(),
             'can_cancel' => $this->status->isCancellableByCustomer() && $this->isUnpaid(),
+            'can_pay' => $this->canBePaid(),
+            // The newest payment attempt (payments are loaded newest first), so the page knows what to show and whether to wait.
+            'payment' => $this->payments->isNotEmpty() ? new PaymentResource($this->payments->first()) : null,
+            // Money arrived that the order could not use (it had been cancelled): it will be refunded.
+            'refund_pending' => $this->payments->contains(fn ($payment) => $payment->requires_refund),
             'expires_at' => $this->isUnpaid() ? $this->expires_at?->toIso8601String() : null,
             'cancelled_at' => $this->cancelled_at?->toIso8601String(),
+            'paid_at' => $this->paid_at?->toIso8601String(),
             'placed_at' => $this->created_at?->toIso8601String(),
         ];
     }

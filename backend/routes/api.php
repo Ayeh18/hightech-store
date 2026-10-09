@@ -15,6 +15,9 @@ use App\Http\Controllers\Api\Catalog\SpecDefinitionController;
 use App\Http\Controllers\Api\Compatibility\CompatibilityRuleController;
 use App\Http\Controllers\Api\Orders\CheckoutController;
 use App\Http\Controllers\Api\Orders\OrderController;
+use App\Http\Controllers\Api\Orders\PaymentController;
+use App\Http\Controllers\Api\Payments\FakeGatewayController;
+use App\Http\Controllers\Api\Payments\PaymentWebhookController;
 use App\Http\Controllers\Api\PcBuilder\BuildController;
 use App\Http\Controllers\Api\PcBuilder\PcBuilderController;
 use Illuminate\Support\Facades\Route;
@@ -152,4 +155,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('orders', [OrderController::class, 'index']);
     Route::get('orders/{order}', [OrderController::class, 'show']);
     Route::post('orders/{order}/cancel', [OrderController::class, 'cancel'])->middleware('throttle:20,1');
+    Route::post('orders/{order}/payments', [PaymentController::class, 'store'])->middleware('throttle:20,1');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Payments
+|--------------------------------------------------------------------------
+| Webhooks are called by the payment company, not by a logged-in customer: no cookie, no login. The signature on each
+| request is what proves it is genuine (see WebhookSigner). The fake-gateway routes are the pretend company's payment
+| page and exist only while the fake gateway is enabled (never in production).
+*/
+
+Route::post('webhooks/{provider}', [PaymentWebhookController::class, 'handle'])->middleware('throttle:300,1');
+
+Route::prefix('fake-gateway')->middleware('throttle:60,1')->group(function () {
+    Route::get('payments/{reference}', [FakeGatewayController::class, 'show']);
+    Route::post('payments/{reference}/complete', [FakeGatewayController::class, 'complete']);
 });

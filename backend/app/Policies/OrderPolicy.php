@@ -6,7 +6,7 @@ use App\Models\Order;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 
-/** Customers can only see and cancel their own orders. Anyone else gets a 404, so order ids reveal nothing. */
+/** Customers can only see, cancel and pay for their own orders. Anyone else gets a 404, so order ids reveal nothing. */
 class OrderPolicy
 {
     public function view(User $user, Order $order): Response
@@ -15,6 +15,11 @@ class OrderPolicy
     }
 
     public function cancel(User $user, Order $order): Response
+    {
+        return $this->owner($user, $order);
+    }
+
+    public function pay(User $user, Order $order): Response
     {
         return $this->owner($user, $order);
     }
