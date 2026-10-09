@@ -4,6 +4,8 @@ import { RouterLink, useRoute } from 'vue-router'
 import OrderTotals from '@/components/checkout/OrderTotals.vue'
 import OrderLines from '@/components/orders/OrderLines.vue'
 import OrderStatusBadge from '@/components/orders/OrderStatusBadge.vue'
+import OrderTimeline from '@/components/orders/OrderTimeline.vue'
+import RefundCard from '@/components/orders/RefundCard.vue'
 import AlertMessage from '@/components/ui/AlertMessage.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
@@ -25,6 +27,10 @@ const cancelError = ref('')
 const paying = ref(false)
 const payError = ref('')
 const polls = ref(0)
+const refundOpen = ref(false)
+const refundNote = ref('')
+const refunding = ref(false)
+const refundError = ref('')
 
 // After paying, the payment company tells the shop in the background (a webhook), which can take a few seconds. Until
 // then this page asks the server again every couple of seconds. The server is the only one who says the order is paid.
@@ -138,6 +144,42 @@ async function cancel() {
     cancelling.value = false
   }
 }
+
+// ---------- shipping and refunds (everything shown here comes from the server; nothing is worked out in the browser)
+const progressText = computed(
+  () =>
+    ({
+      PAID: "Thank you! We'll start preparing your order.",
+      PROCESSING: "We're preparing your order.",
+      PACKED: 'Your order is packed and ready to go.',
+      SHIPPED: 'Your order is on its way.',
+      DELIVERED: 'Your order was delivered. Enjoy!',
+    })[order.value.status.value] ?? '',
+)
+const refundWaiting = computed(() => order.value.refunds.find((r) => r.status.value === 'REQUESTED') ?? null)
+const latestRefund = computed(() => order.value.refunds[0] ?? null) // the server sends newest first
+const day = (iso) => new Intl.DateTimeFormat('en-MY', { dateStyle: 'long' }).format(new Date(iso))
+
+function openRefundDialog() {
+  refundNote.value = ''
+  refundError.value = ''
+  refundOpen.value = true
+}
+
+async function requestRefund() {
+  refunding.value = true
+  refundError.value = ''
+  try {
+    order.value = await store.requestRefund(order.value.id, refundNote.value.trim())
+    refundOpen.value = false
+    store.reset() // the list is out of date now
+  } catch (e) {
+    const parsed = parseApiError(e)
+    refundError.value = Object.values(parsed.errors).flat()[0] ?? parsed.message
+  } finally {
+    refunding.value = false
+  }
+}
 </script>
 
 <template>
@@ -186,7 +228,7 @@ async function cancel() {
           <p class="font-medium">
             Payment received<template v-if="order.paid_at"> on {{ when(order.paid_at) }}</template>
           </p>
-          <p class="mt-0.5">Thank you! We'll start preparing your order.</p>
+          <p v-if="progressText" class="mt-0.5">{{ progressText }}</p>
         </AlertMessage>
 
         <AlertMessage v-else-if="confirming" type="warning">
@@ -221,6 +263,36 @@ async function cancel() {
           This order was cancelled<template v-if="order.cancelled_at"> on {{ when(order.cancelled_at) }}</template
           ><template v-if="!order.refund_pending">. Nothing was charged.</template><template v-else>.</template>
         </AlertMessage>
+
+        <AlertMessage v-if="refundWaiting" type="warning" data-testid="refund-waiting">
+          <p class="font-medium">Refund requested</p>
+          <p class="mt-0.5">
+            We'll review your request for {{ refundWaiting.amount.formatted }} soon and email you the answer.
+          </p>
+        </AlertMessage>
+        <AlertMessage v-else-if="latestRefund?.status.value === 'SUCCEEDED'" type="success" data-testid="refund-done">
+          <p class="font-medium">
+            {{ latestRefund.amount.formatted }} refunded<template v-if="latestRefund.refunded_at">
+              on {{ day(latestRefund.refunded_at) }}</template
+            >
+          </p>
+          <p class="mt-0.5">
+            The money goes back to your original payment method. Banks can take a few days to show it.
+          </p>
+        </AlertMessage>
+        <AlertMessage
+          v-else-if="['PROCESSING', 'FAILED'].includes(latestRefund?.status.value)"
+          type="warning"
+          data-testid="refund-processing"
+        >
+          <p class="font-medium">Your refund is being processed</p>
+          <p class="mt-0.5">It can take a little while. We'll email you as soon as the money is on its way.</p>
+        </AlertMessage>
+        <AlertMessage v-else-if="latestRefund?.status.value === 'REJECTED'" data-testid="refund-rejected">
+          <p class="font-medium">We couldn't approve your refund request</p>
+          <p v-if="latestRefund.review_note" class="mt-0.5">{{ latestRefund.review_note }}</p>
+          <p v-if="order.can_request_refund" class="mt-0.5">If something has changed, you can ask again.</p>
+        </AlertMessage>
       </div>
 
       <div class="mt-6 grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
@@ -229,7 +301,15 @@ async function cancel() {
           <OrderLines :lines="order.lines" class="mt-2" />
         </section>
 
-        <div class="space-y-4">
+        <section
+          class="rounded-card border border-line bg-surface p-5 lg:col-start-1"
+          aria-labelledby="progress-heading"
+        >
+          <h2 id="progress-heading" class="mb-4 font-display text-lg font-semibold">Order progress</h2>
+          <OrderTimeline :entries="order.timeline" />
+        </section>
+
+        <div class="space-y-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <section class="rounded-card border border-line bg-surface p-5" aria-labelledby="totals-heading">
             <h2 id="totals-heading" class="mb-3 font-display text-lg font-semibold">Payment summary</h2>
             <OrderTotals
@@ -239,6 +319,36 @@ async function cancel() {
               :total="order.total"
               :coupon-code="order.coupon_code"
             />
+          </section>
+
+          <section
+            v-if="order.shipment"
+            class="rounded-card border border-line bg-surface p-5 text-sm"
+            aria-labelledby="shipment-heading"
+            data-testid="shipment"
+          >
+            <h2 id="shipment-heading" class="mb-2 font-display text-lg font-semibold">Shipment</h2>
+            <p class="text-muted">{{ order.shipment.carrier }}</p>
+            <p class="mt-1 font-medium tabular-nums" data-testid="tracking-number">
+              {{ order.shipment.tracking_number }}
+            </p>
+            <p class="mt-2 text-xs text-muted">
+              Shipped {{ day(order.shipment.shipped_at)
+              }}<template v-if="order.shipment.delivered_at">
+                · delivered {{ day(order.shipment.delivered_at) }}</template
+              >
+            </p>
+          </section>
+
+          <section
+            v-if="order.refunds.length"
+            class="rounded-card border border-line bg-surface p-5"
+            aria-labelledby="refunds-heading"
+          >
+            <h2 id="refunds-heading" class="mb-3 font-display text-lg font-semibold">Refunds</h2>
+            <div class="space-y-2">
+              <RefundCard v-for="refund in order.refunds" :key="refund.id" :refund="refund" />
+            </div>
           </section>
 
           <section class="rounded-card border border-line bg-surface p-5 text-sm" aria-labelledby="ship-heading">
@@ -263,6 +373,10 @@ async function cancel() {
           <BaseButton v-if="order.can_cancel" block variant="secondary" @click="confirmingCancel = true"
             >Cancel order</BaseButton
           >
+
+          <BaseButton v-if="order.can_request_refund" block variant="secondary" @click="openRefundDialog"
+            >Request a refund</BaseButton
+          >
         </div>
       </div>
 
@@ -278,6 +392,37 @@ async function cancel() {
           <div class="flex justify-end gap-3">
             <BaseButton variant="ghost" @click="confirmingCancel = false">Keep order</BaseButton>
             <BaseButton class="!bg-danger" :loading="cancelling" @click="cancel">Cancel order</BaseButton>
+          </div>
+        </template>
+      </BaseModal>
+
+      <BaseModal :open="refundOpen" title="Request a refund" @close="refundOpen = false">
+        <form id="refund-form" class="space-y-3 p-5 text-sm" @submit.prevent="requestRefund">
+          <AlertMessage v-if="refundError">{{ refundError }}</AlertMessage>
+          <p>
+            Tell us why you'd like your money back for order
+            <span class="font-semibold">{{ order.order_number }}</span
+            >. Our team will review it and email you. Nothing is refunded until it is approved.
+          </p>
+          <label class="block">
+            <span class="mb-1 block text-xs font-medium text-muted">Your reason</span>
+            <textarea
+              id="refund-note"
+              v-model="refundNote"
+              rows="4"
+              maxlength="500"
+              required
+              class="w-full rounded-xl border border-line bg-bg px-4 py-2.5 text-sm text-ink placeholder:text-muted/70 focus:border-accent focus:outline-none"
+              placeholder="For example: it doesn't fit my case, or it arrived damaged"
+            />
+          </label>
+        </form>
+        <template #footer>
+          <div class="flex justify-end gap-3">
+            <BaseButton variant="ghost" @click="refundOpen = false">Never mind</BaseButton>
+            <BaseButton type="submit" form="refund-form" :loading="refunding" :disabled="refundNote.trim().length < 3"
+              >Send request</BaseButton
+            >
           </div>
         </template>
       </BaseModal>

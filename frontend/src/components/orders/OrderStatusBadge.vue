@@ -8,10 +8,13 @@ const props = defineProps({
 })
 
 const tone = computed(() => {
-  const good = ['PAID', 'PROCESSING', 'PACKED', 'SHIPPED', 'DELIVERED']
-  const bad = ['CANCELLED', 'FAILED', 'REFUNDED', 'REFUND_REQUESTED']
-  if (good.includes(props.status.value)) return 'bg-success/15 text-success'
-  if (bad.includes(props.status.value)) return 'bg-danger/15 text-danger'
+  const value = props.status.value
+  // "Processing" means progress for an order (being prepared) but "still in flight" for a payment.
+  const good = ['PAID', 'PACKED', 'SHIPPED', 'DELIVERED', ...(props.kind === 'order' ? ['PROCESSING'] : [])]
+  const bad = ['CANCELLED', 'FAILED']
+  if (good.includes(value)) return 'bg-success/15 text-success'
+  if (bad.includes(value)) return 'bg-danger/15 text-danger'
+  if (value === 'REFUNDED') return 'bg-line text-muted' // finished, and not good or bad news
   return 'bg-warning/15 text-warning'
 })
 </script>

@@ -44,11 +44,17 @@ export const useOrderStore = defineStore('orders', () => {
     return data.data
   }
 
+  /** "I want my money back". Staff review it; nothing is paid out yet. Returns the updated order. */
+  async function requestRefund(id, note) {
+    const { data } = await api.post(`/api/orders/${id}/refund-request`, { note })
+    return data.data
+  }
+
   function reset() {
     orders.value = []
     loaded.value = false
     error.value = ''
   }
 
-  return { orders, meta, loading, loaded, error, fetchOrders, fetchOrder, cancel, startPayment, reset }
+  return { orders, meta, loading, loaded, error, fetchOrders, fetchOrder, cancel, startPayment, requestRefund, reset }
 })
