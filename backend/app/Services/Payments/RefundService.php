@@ -179,6 +179,11 @@ class RefundService
                 throw ValidationException::withMessages(['reason' => 'Choose goodwill or late payment.']);
             }
 
+            // The customer asked for a fixed amount. A smaller refund in between would leave that request impossible to approve.
+            if ($order->refunds->contains(fn (Refund $r) => $r->status === RefundStatus::Requested)) {
+                throw ValidationException::withMessages(['payment' => 'This order has a refund request waiting. Approve or decline it first.']);
+            }
+
             if ($locked->status !== PaymentStatus::Paid) {
                 throw ValidationException::withMessages(['payment' => 'Only a paid payment can be refunded.']);
             }

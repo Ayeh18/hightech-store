@@ -584,3 +584,19 @@ it('ignores a repeated "payment succeeded" webhook for a payment that has since 
 
     expect($payment->fresh()->status)->toBe(PaymentStatus::Refunded);
 });
+
+it('does not allow a smaller refund while the customer\'s request is waiting for a decision', function () {
+    $order = paidOrder();
+    askForRefund($order)->assertCreated();
+    $admin = withRole('admin');
+
+    $this->actingAs($admin)->postJson('/api/admin/payments/'.paymentOf($order)->id.'/refunds', ['amount' => 5000, 'reason' => 'goodwill'])
+        ->assertUnprocessable()->assertJsonPath('errors.payment.0', 'This order has a refund request waiting. Approve or decline it first.');
+
+    expect(FakeGatewayRefund::count())->toBe(0);
+
+    // Once the request is decided, the request can still be approved in full...
+    $this->actingAs($admin)->postJson('/api/admin/refunds/'.theRefund($order)->id.'/reject', ['note' => 'Not eligible'])->assertOk();
+    // ...and a goodwill refund is possible again.
+    $this->actingAs($admin)->postJson('/api/admin/payments/'.paymentOf($order)->id.'/refunds', ['amount' => 5000, 'reason' => 'goodwill'])->assertOk();
+});
