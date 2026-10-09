@@ -3,10 +3,11 @@
 A PC-hardware e-commerce platform with a compatibility-checked **PC Builder**, built with Laravel 13 (REST API),
 Vue 3 and PostgreSQL. Portfolio project, built phase by phase.
 
-> **Status:** Phases 1-7 complete: Docker environment, authentication and RBAC, audit logging, the product catalog,
+> **Status:** Phases 1-8 complete: Docker environment, authentication and RBAC, audit logging, the product catalog,
 > the PC builder with saved builds, the compatibility engine, the shopping cart, checkout (addresses, coupons,
 > shipping, orders with stock reservation), and payments (a gateway-agnostic payment layer with signed, idempotent
-> webhooks, plus a local fake gateway). Order fulfilment, refunds and the admin screens follow in later phases.
+> webhooks, plus a local fake gateway), and order management (fulfilment, shipments, refunds). The admin screens
+> that use these APIs follow in the next phase.
 
 ## Stack
 
@@ -234,6 +235,62 @@ Try it: place an order, press **Pay**, and choose an outcome. Emails appear in M
 | `POST /api/orders/{id}/payments` | Start (or resume) paying. `201` new, `200` the one already waiting, `422` with the reason otherwise |
 | `POST /api/webhooks/{provider}` | Called by the gateway. No login; the signature is the proof. Always `200` for anything that is not an error |
 | `GET/POST /api/fake-gateway/payments/{reference}[/complete]` | The simulator's payment page (development only) |
+
+## Order management and refunds (Phase 8)
+
+Who may do what is decided by permissions, not by hard-coded roles:
+
+| Permission | Who has it | What it allows |
+|---|---|---|
+| `orders.manage` | staff and admins | See every order, move it through fulfilment, add the shipment |
+| `refunds.manage` | **admins only** | Decide refunds, cancel a paid order, refund an amount. Moving money needs more trust than packing a box |
+| `payments.view` | admins only | See the payment company's own reference for a payment |
+
+**Getting an order to the customer.** Each step is strictly the next one: `PAID -> PROCESSING -> PACKED -> SHIPPED -> DELIVERED`.
+Skipping a step, going back, or touching an order that is unpaid, cancelled or has an open refund request is refused (`422`).
+Shipping records the carrier and tracking number and emails the customer. Every status change of any order, whoever or
+whatever caused it, is written to `order_status_histories` by an **observer**, so no code path can forget. That is the
+customer's timeline, and it lets a declined refund put the order back to *exactly* the status it had.
+
+**Refunds, from the customer's side.** On a paid order the customer can ask for their money back (`POST /api/orders/{id}/refund-request`, a
+reason is required). Nothing is paid out yet; the order shows "Refund requested" and fulfilment stops. An admin then approves
+or declines it. A delivered order can be refunded for 14 days after delivery (`config/shop.php`).
+
+| Endpoint | Permission | Notes |
+|---|---|---|
+| `GET /api/admin/orders` | `orders.manage` | Filters: `status`, `payment_status`, `q` (order number, email or name). 20 per page |
+| `GET /api/admin/orders/{id}` | `orders.manage` | Everything: customer, every payment, refunds, shipment, timeline |
+| `POST /api/admin/orders/{id}/status` | `orders.manage` | `{status: PROCESSING \| PACKED}` |
+| `POST /api/admin/orders/{id}/shipment` | `orders.manage` | `{carrier, tracking_number}`: PACKED -> SHIPPED |
+| `POST /api/admin/orders/{id}/shipment/delivered` | `orders.manage` | SHIPPED -> DELIVERED |
+| `GET /api/admin/refunds?status=REQUESTED` | `refunds.manage` | The queue of customer requests |
+| `POST /api/admin/refunds/{id}/approve` | `refunds.manage` | `{restock?, note?}` |
+| `POST /api/admin/refunds/{id}/reject` | `refunds.manage` | `{note}` (the customer is told why) |
+| `POST /api/admin/refunds/{id}/retry` | `refunds.manage` | For a refund the payment company did not complete |
+| `POST /api/admin/orders/{id}/cancel-and-refund` | `refunds.manage` | Paid and not yet shipped: refunds in full, cancels, puts the goods back |
+| `POST /api/admin/payments/{id}/refunds` | `refunds.manage` | `{amount (sen), reason: goodwill \| late_payment, note?}` |
+| `GET /api/admin/payments/needing-refund` | `refunds.manage` | Payments that arrived after their order was cancelled |
+
+Actions that call the payment company answer `200` with the refund even when the company refused: it then has the status
+`FAILED` and a `failure_reason`, and can be retried.
+
+**What keeps the money safe**
+
+| Risk | How it is handled |
+|---|---|
+| Refunding more than was paid | `payments.refunded_amount` is capped by a database `CHECK`, and the amount that can still be refunded **includes refunds that are still being sent**, so two at once cannot add up to more |
+| Refunding twice (a timeout, a double click, a retry) | The refund is `PROCESSING` before the gateway is called, only one approval can win (row locks), and the gateway receives the refund's id as an **idempotency key**: asking again returns the first refund. Tested with a gateway that refunds and then "loses" its answer |
+| A slow gateway freezing the shop | The gateway call is outside the database transaction; the result is written in a second one |
+| Half-finished changes | If the gateway says no, the order, payment and stock are untouched and the refund is `FAILED`. A retry finishes the job exactly once |
+| Stock going back twice, or when it should not | Goods return to the shelf only for a refund that covers the **whole order**, and only if it never shipped (or staff confirm the parcel came back). It is a `return` line in the product's stock history |
+| One request waiting per order | A partial unique index |
+| Who did it | Every approval, rejection, shipment and status change is in the audit log |
+
+Late payments are refunded from the same screen: a payment that arrived after its order was cancelled is flagged `requires_refund`
+(Phase 7) and appears in `payments/needing-refund`; refunding it in full clears the flag without reopening the order.
+
+The fake gateway implements refunds too (`fake_gateway_refunds`, with the idempotency key as a unique column). Real gateways
+can answer a refund with "pending" and confirm later by webhook; this phase handles the immediate answer only.
 
 ## Tests and quality checks
 
