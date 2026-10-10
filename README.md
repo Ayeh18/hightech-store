@@ -374,6 +374,15 @@ refund is **approved or declined**. People who hold `inventory.manage` are email
 | `GET audit-logs` · `GET audit-logs/actions` | `audit.view` |
 | `GET/POST coupons` · `PUT/DELETE coupons/{id}` | `coupons.manage` |
 
+## Hosting it for free
+
+[docs/hosting-free.md](docs/hosting-free.md) is a step-by-step guide to a free public demo: the Vue site on **Netlify**, the
+API on **Render** (one Docker container: `backend/Dockerfile` runs nginx, PHP-FPM, the queue worker and the scheduler) and
+the database on **Neon**. Netlify forwards `/api`, `/sanctum` and `/storage` to the API (`netlify.toml`), so the browser sees
+one address and the cookie login keeps working. On first start the container migrates the database and runs
+`php artisan shop:install`, which creates the roles, the compatibility rules and the first admin from `ADMIN_EMAIL` /
+`ADMIN_PASSWORD` (and, only into an empty shop and only if `SEED_DEMO_CATALOG=true`, the demo catalog). It is safe to run again.
+
 ## Tests and quality checks
 
 ```bash

@@ -1,0 +1,48 @@
+# The web server. The port is filled in by entrypoint.sh (hosts choose it through the PORT variable).
+user www-data;
+worker_processes 1;
+error_log /dev/stderr warn;
+pid /run/nginx.pid;
+
+events {
+    worker_connections 256;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    access_log /dev/stdout;
+    sendfile on;
+    keepalive_timeout 30;
+    client_max_body_size 5m; # photos are limited to 3 MB; this leaves room for the form around them
+    server_tokens off;
+
+    gzip on;
+    gzip_types application/json text/css application/javascript image/svg+xml;
+
+    server {
+        listen __PORT__;
+        root /var/www/html/public;
+        index index.php;
+
+        add_header X-Content-Type-Options "nosniff" always;
+
+        location / {
+            try_files $uri /index.php?$query_string;
+        }
+
+        location ~ \.php$ {
+            fastcgi_pass 127.0.0.1:9000;
+            include fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+            fastcgi_param DOCUMENT_ROOT $realpath_root;
+            fastcgi_read_timeout 60s;
+        }
+
+        # Never serve hidden files (.env, .git...), except the standard /.well-known folder.
+        location ~ /\.(?!well-known) {
+            deny all;
+        }
+    }
+}

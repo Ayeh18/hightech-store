@@ -1,0 +1,43 @@
+# Netlify settings for the shop's FRONTEND (the Vue app). Netlify cannot run the Laravel API or the database; those live elsewhere
+# (see docs/hosting-free.md). This file tells Netlify how to build the frontend, and forwards API calls to the API.
+
+[build]
+  base = "frontend"        # the Vue app lives in this folder
+  command = "npm run build"
+  publish = "dist"         # relative to "base"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# ---------------------------------------------------------------------------------------------------------------------------
+# Forward API calls to the API server, so the browser only ever talks to THIS site (same address = login cookies just work,
+# exactly as with the Vite dev server on your own computer). "status = 200" makes it a forward, not a redirect.
+#
+# >>> BEFORE YOUR FIRST DEPLOY: replace YOUR-API-NAME.onrender.com (three times) with the address of your API. <<<
+#
+# The order matters: Netlify uses the first rule that matches, so these come BEFORE the catch-all at the bottom.
+# ---------------------------------------------------------------------------------------------------------------------------
+[[redirects]]
+  from = "/api/*"
+  to = "https://YOUR-API-NAME.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/sanctum/*"
+  to = "https://YOUR-API-NAME.onrender.com/sanctum/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/storage/*"
+  to = "https://YOUR-API-NAME.onrender.com/storage/:splat"
+  status = 200
+  force = true
+
+# Everything else is a page of the Vue app (it draws its own pages in the browser), so always send the app itself.
+# Without this, refreshing the page on /orders or /admin/products would show "Page not found".
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

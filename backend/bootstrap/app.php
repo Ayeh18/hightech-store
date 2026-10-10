@@ -23,6 +23,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // Makes requests from the SPA (listed in SANCTUM_STATEFUL_DOMAINS) use cookies + sessions + CSRF.
         $middleware->statefulApi();
 
+        // On a host (Render, Netlify...) every request arrives through the host's own proxy. Believe its X-Forwarded-For and
+        // X-Forwarded-Proto headers, otherwise every visitor looks like the same IP address (rate limits and the audit log
+        // would treat everyone as one person) and https pages think they are http. Only safe because the app is reachable
+        // through the host's proxy alone.
+        $middleware->trustProxies(at: '*');
+
         // Signs a deactivated user out on their next request, even if their session was already open.
         $middleware->api(append: [EnsureUserIsActive::class]);
         // Laravel runs authentication before middleware it does not know about. This one must run first, otherwise the

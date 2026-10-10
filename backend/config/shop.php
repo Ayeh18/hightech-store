@@ -21,6 +21,20 @@ return [
 
     'max_addresses' => 10,
 
+    /*
+    |--------------------------------------------------------------------------
+    | First-run setup (php artisan shop:install)
+    |--------------------------------------------------------------------------
+    | Used when the shop is put on a real server for the first time. It creates the first admin from these settings
+    | (never a demo account with a known password) and can fill an EMPTY catalog with the demo products.
+    */
+    'install' => [
+        'admin_email' => env('ADMIN_EMAIL'),
+        'admin_password' => env('ADMIN_PASSWORD'),
+        'admin_name' => env('ADMIN_NAME', 'Shop Admin'),
+        'demo_catalog' => (bool) env('SEED_DEMO_CATALOG', false),
+    ],
+
     // A customer can ask for a refund until this many days after their order was delivered.
     'refund_window_days' => 14,
 
