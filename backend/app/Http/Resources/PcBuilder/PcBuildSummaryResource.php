@@ -3,6 +3,7 @@
 namespace App\Http\Resources\PcBuilder;
 
 use App\Enums\BuilderSlot;
+use App\Http\Controllers\Api\PcBuilder\BuildShareController;
 use App\Models\PcBuild;
 use App\Services\Compatibility\ActiveRules;
 use App\Services\PcBuilder\BuildEvaluator;
@@ -46,6 +47,7 @@ class PcBuildSummaryResource extends JsonResource
             /** @var 'compatible'|'warning'|'incompatible' */
             'compatibility_status' => $evaluated->compatibility->status(),
             'issue_count' => count($priced->issues) + count($evaluated->compatibility->issues),
+            'share' => $this->isShared() ? BuildShareController::link($this->resource) : null,
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }

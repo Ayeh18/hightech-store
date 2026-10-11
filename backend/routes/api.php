@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\Orders\PaymentController;
 use App\Http\Controllers\Api\Payments\FakeGatewayController;
 use App\Http\Controllers\Api\Payments\PaymentWebhookController;
 use App\Http\Controllers\Api\PcBuilder\BuildController;
+use App\Http\Controllers\Api\PcBuilder\BuildShareController;
 use App\Http\Controllers\Api\PcBuilder\PcBuilderController;
 use App\Http\Controllers\Api\PcBuilder\RecommendationController;
 use Illuminate\Support\Facades\Route;
@@ -167,6 +168,9 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('pc-builder/components', [PcBuilderController::class, 'components']);
 Route::post('pc-builder/validate', [PcBuilderController::class, 'validateBuild'])->middleware('throttle:60,1,builder-validate');
 Route::get('pc-builder/parts', [PcBuilderController::class, 'parts'])->middleware('throttle:120,1,builder-parts');
+// A build its owner chose to share: public, read-only, found only by the long random token in its link.
+Route::get('shared-builds/{token}', [BuildShareController::class, 'show'])->middleware('throttle:60,1,shared-build');
+
 // Suggesting a build may call an outside AI service with a small daily allowance, so it is limited more tightly.
 Route::get('pc-builder/recommendations/options', [RecommendationController::class, 'options']);
 Route::post('pc-builder/recommendations', [RecommendationController::class, 'store'])->middleware('throttle:10,1,builder-recommend');
@@ -179,6 +183,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('builds/{build}', [BuildController::class, 'update']);
     Route::delete('builds/{build}', [BuildController::class, 'destroy']);
     Route::post('builds/{build}/duplicate', [BuildController::class, 'duplicate'])->middleware('throttle:30,1,builds-duplicate');
+    Route::post('builds/{build}/share', [BuildShareController::class, 'store'])->middleware('throttle:30,1,builds-share');
+    Route::delete('builds/{build}/share', [BuildShareController::class, 'destroy'])->middleware('throttle:30,1,builds-share');
 });
 
 // Compatibility rule settings (switch rules on/off, change severity, tune numbers).

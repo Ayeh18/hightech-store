@@ -118,6 +118,15 @@ it('describes the PC builder as it really is', function () {
     $ref->check($this->actingAs($user)->postJson('/api/builds/'.$saved->json('data.id').'/duplicate'), 'POST', '/builds/{build}/duplicate', 201);
     $ref->check($this->actingAs(shopper())->getJson('/api/builds/'.$saved->json('data.id')), 'GET', '/builds/{build}', 404); // not theirs
 
+    // Sharing: the owner's link, the build as a stranger sees it, and switching the link off.
+    $link = $ref->check($this->actingAs($user)->postJson('/api/builds/'.$saved->json('data.id').'/share'), 'POST', '/builds/{build}/share', 200);
+    $ref->check($this->actingAs($user)->getJson('/api/builds'), 'GET', '/builds', 200);
+    $ref->check($this->actingAs($user)->getJson('/api/builds/'.$saved->json('data.id')), 'GET', '/builds/{build}', 200);
+    auth()->forgetGuards();
+    $ref->check($this->getJson('/api/shared-builds/'.$link->json('data.token')), 'GET', '/shared-builds/{token}', 200);
+    $ref->check($this->getJson('/api/shared-builds/'.str_repeat('a', 40)), 'GET', '/shared-builds/{token}', 404);
+    $ref->check($this->actingAs($user)->deleteJson('/api/builds/'.$saved->json('data.id').'/share'), 'DELETE', '/builds/{build}/share', 204);
+
     expect($ref->problems)->toBe([]);
 });
 

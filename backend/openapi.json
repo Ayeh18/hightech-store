@@ -21,7 +21,7 @@
         },
         {
             "name": "PC builder",
-            "description": "Choosing parts slot by slot, checking that they fit together, getting a build suggested for a budget, and saving builds."
+            "description": "Choosing parts slot by slot, checking that they fit together, getting a build suggested for a budget, and saving and sharing builds."
         },
         {
             "name": "Cart",
@@ -7225,6 +7225,68 @@
                 "security": []
             }
         },
+        "/shared-builds/{token}": {
+            "get": {
+                "operationId": "buildShare.show",
+                "description": "Public: the token in the link is the permission. The build is priced and checked as it is now, so it may differ\nfrom what its owner saw when they shared it. A part that is no longer on sale is listed as unavailable, unnamed.\n\n**Rate limit:** 60 requests per minute",
+                "summary": "Show a shared build",
+                "tags": [
+                    "PC builder"
+                ],
+                "parameters": [
+                    {
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`SharedBuildResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/SharedBuildResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "429": {
+                        "description": "Too many requests. The `Retry-After` header says how many seconds to wait.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
         "/pc-builder/recommendations/options": {
             "get": {
                 "operationId": "recommendation.options",
@@ -7707,6 +7769,145 @@
                                 }
                             }
                         }
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "429": {
+                        "description": "Too many requests. The `Retry-After` header says how many seconds to wait.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/builds/{build}/share": {
+            "post": {
+                "operationId": "buildShare.store",
+                "description": "Anyone with the link can see the build's name and parts, at the shop's current prices, and copy it into their own\nbuilder. They cannot change it, and it does not say who made it. Asking again returns the same link.\n\n**Rate limit:** 30 requests per minute",
+                "summary": "Create a public link to one of my builds",
+                "tags": [
+                    "PC builder"
+                ],
+                "parameters": [
+                    {
+                        "name": "build",
+                        "in": "path",
+                        "required": true,
+                        "description": "The build ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "token": {
+                                                    "type": "string"
+                                                },
+                                                "path": {
+                                                    "type": "string",
+                                                    "description": "Where the website shows it. The website adds its own address in front."
+                                                },
+                                                "shared_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "token",
+                                                "path",
+                                                "shared_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "429": {
+                        "description": "Too many requests. The `Retry-After` header says how many seconds to wait.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "buildShare.destroy",
+                "description": "The link stops working at once and for good; sharing the build again later makes a new, different link.\n\n**Rate limit:** 30 requests per minute",
+                "summary": "Stop sharing one of my builds",
+                "tags": [
+                    "PC builder"
+                ],
+                "parameters": [
+                    {
+                        "name": "build",
+                        "in": "path",
+                        "required": true,
+                        "description": "The build ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
                     },
                     "403": {
                         "$ref": "#/components/responses/AuthorizationException"
@@ -10819,6 +11020,33 @@
                             "null"
                         ]
                     },
+                    "share": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "The public link, when the owner has switched one on (this shape is only ever sent to the owner).",
+                        "properties": {
+                            "token": {
+                                "type": "string"
+                            },
+                            "path": {
+                                "type": "string",
+                                "description": "Where the website shows it. The website adds its own address in front."
+                            },
+                            "shared_at": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "token",
+                            "path",
+                            "shared_at"
+                        ]
+                    },
                     "items": {
                         "type": "array",
                         "items": {}
@@ -10894,6 +11122,7 @@
                     "name",
                     "created_at",
                     "updated_at",
+                    "share",
                     "items",
                     "subtotal",
                     "item_count",
@@ -10956,6 +11185,32 @@
                     "issue_count": {
                         "type": "integer"
                     },
+                    "share": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "token": {
+                                "type": "string"
+                            },
+                            "path": {
+                                "type": "string",
+                                "description": "Where the website shows it. The website adds its own address in front."
+                            },
+                            "shared_at": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "token",
+                            "path",
+                            "shared_at"
+                        ]
+                    },
                     "updated_at": {
                         "type": [
                             "string",
@@ -10973,6 +11228,7 @@
                     "purchasable",
                     "compatibility_status",
                     "issue_count",
+                    "share",
                     "updated_at"
                 ],
                 "title": "PcBuildSummaryResource"
@@ -11865,6 +12121,102 @@
                     "items"
                 ],
                 "title": "SaveBuildRequest"
+            },
+            "SharedBuildResource": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "shared_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {}
+                    },
+                    "subtotal": {
+                        "$ref": "#/components/schemas/Money"
+                    },
+                    "item_count": {
+                        "type": "number"
+                    },
+                    "complete": {
+                        "type": "boolean"
+                    },
+                    "missing_slots": {
+                        "type": "array",
+                        "items": {}
+                    },
+                    "issues": {
+                        "type": "array",
+                        "description": "Availability problems (stock, withdrawn products).",
+                        "items": {}
+                    },
+                    "compatibility": {
+                        "type": "object",
+                        "description": "Compatibility problems (sockets, sizes, power...).",
+                        "properties": {
+                            "status": {
+                                "type": "string",
+                                "enum": [
+                                    "compatible",
+                                    "warning",
+                                    "incompatible"
+                                ]
+                            },
+                            "issues": {
+                                "type": "array",
+                                "items": {}
+                            },
+                            "metrics": {
+                                "type": "object",
+                                "properties": {
+                                    "estimated_power_watts": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "recommended_psu_watts": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "estimated_power_watts",
+                                    "recommended_psu_watts"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "status",
+                            "issues",
+                            "metrics"
+                        ]
+                    },
+                    "purchasable": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "name",
+                    "shared_at",
+                    "items",
+                    "subtotal",
+                    "item_count",
+                    "complete",
+                    "missing_slots",
+                    "issues",
+                    "compatibility",
+                    "purchasable"
+                ],
+                "title": "SharedBuildResource"
             },
             "ShipOrderRequest": {
                 "type": "object",
