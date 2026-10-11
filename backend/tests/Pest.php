@@ -1,6 +1,7 @@
 <?php
 
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -14,6 +15,15 @@ pest()->extend(TestCase::class)
     ->in('Feature');
 
 pest()->extend(TestCase::class)->in('Unit');
+
+/*
+| Concurrency tests need rows that other processes and connections can see, so they cannot hide inside a transaction.
+| They write for real and the test database is emptied after each one instead.
+*/
+pest()->extend(TestCase::class)
+    ->use(DatabaseTruncation::class)
+    ->beforeEach(fn () => $this->seed(RolePermissionSeeder::class))
+    ->in('Concurrency');
 
 /*
 | Shared test helpers for the PC builder.
