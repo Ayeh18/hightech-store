@@ -17,6 +17,8 @@ class RecommendBuildRequest extends FormRequest
 
     public const MAX_BUDGET_SEN = 10_000_000;    // RM 100,000
 
+    public const MAX_GAMES = 5;
+
     public function authorize(): bool
     {
         return true;
@@ -32,7 +34,7 @@ class RecommendBuildRequest extends FormRequest
             'priority' => ['sometimes', Rule::enum(BuildPriority::class)],
             'resolution' => ['sometimes', Rule::enum(TargetResolution::class)],
             // Titles the customer plays. Only an AI recommender reads them, as a hint; plain words only.
-            'games' => ['sometimes', 'array', 'max:5'],
+            'games' => ['sometimes', 'array', 'max:'.self::MAX_GAMES],
             'games.*' => ['string', 'max:40', 'regex:/^[\pL\pN][\pL\pN \-:\'.&+!]*$/u', 'distinct:ignore_case'],
         ];
     }

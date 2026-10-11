@@ -101,6 +101,23 @@ it('asks in the agreed format, with the key in a header and nothing about the cu
     });
 });
 
+it('keeps the question short: only the specifications that matter, and a handful of products per slot', function () {
+    config(['recommender.ai.candidates_per_slot' => 2]);
+    aiAnswers(aiBuild($this->parts));
+
+    recommend()->assertOk();
+
+    Http::assertSent(function (Request $request) {
+        $products = json_decode($request->data()['messages'][1]['content'], true)['products'];
+
+        return array_keys($products['ram'][0]['specs']) === ['ram_type', 'capacity_gb', 'modules', 'speed_mhz'] // no cas_latency
+            && array_keys($products['ram'][0]) === ['id', 'name', 'price_rm', 'specs']
+            && count($products['ram']) === 2                      // of the three kits, the cheapest and the dearest
+            && array_column($products['ram'], 'price_rm') === [170, 450]
+            && count($products['cpu']) === 2;
+    });
+});
+
 it('never shows the AI\'s key or its raw answer to the customer', function () {
     aiAnswers(aiBuild($this->parts));
 

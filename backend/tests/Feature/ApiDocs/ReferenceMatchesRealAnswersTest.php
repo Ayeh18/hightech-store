@@ -106,6 +106,7 @@ it('describes the PC builder as it really is', function () {
     $ref->check($this->postJson('/api/pc-builder/validate', pcPayload($wrong)), 'POST', '/pc-builder/validate', 200);
     $ref->check($this->postJson('/api/pc-builder/validate', ['items' => [['slot' => 'nonsense']]]), 'POST', '/pc-builder/validate', 422);
 
+    $ref->check($this->getJson('/api/pc-builder/recommendations/options'), 'GET', '/pc-builder/recommendations/options', 200);
     // A suggested build: enough budget for the six parts above (RM 2,700), then too little.
     $suggested = $ref->check($this->postJson('/api/pc-builder/recommendations', ['budget' => 400000, 'purpose' => 'work', 'games' => ['Valorant']]), 'POST', '/pc-builder/recommendations', 200);
     $ref->check($this->postJson('/api/pc-builder/recommendations', ['budget' => 100000, 'purpose' => 'gaming']), 'POST', '/pc-builder/recommendations', 422);

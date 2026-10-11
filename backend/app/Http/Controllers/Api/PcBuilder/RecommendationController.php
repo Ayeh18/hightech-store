@@ -2,17 +2,46 @@
 
 namespace App\Http\Controllers\Api\PcBuilder;
 
+use App\Enums\BuildPriority;
+use App\Enums\BuildPurpose;
+use App\Enums\TargetResolution;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PcBuilder\RecommendBuildRequest;
 use App\Http\Resources\PcBuilder\BuildRecommendationResource;
 use App\Models\BuildRecommendation;
 use App\Services\Recommendations\Exceptions\CannotRecommend;
 use App\Services\Recommendations\RecommendationService;
+use App\Support\Money;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Validation\ValidationException;
 
 class RecommendationController extends Controller
 {
+    /**
+     * What a build can be suggested for.
+     *
+     * The choices for the "suggest a build" form, so that their names live in one place. `uses_ai` says whether an AI
+     * service is asked first on this shop; game titles are only worth asking for when it is.
+     */
+    public function options(): JsonResponse
+    {
+        $choices = fn (array $cases) => array_map(fn ($case) => ['value' => $case->value, 'label' => $case->label()], $cases);
+
+        return response()->json(['data' => [
+            'purposes' => $choices(BuildPurpose::cases()),
+            'priorities' => $choices(BuildPriority::cases()),
+            'resolutions' => $choices(TargetResolution::cases()),
+            'budget' => [
+                'min' => Money::fromSen(RecommendBuildRequest::MIN_BUDGET_SEN),
+                'max' => Money::fromSen(RecommendBuildRequest::MAX_BUDGET_SEN),
+            ],
+            'max_games' => RecommendBuildRequest::MAX_GAMES,
+            /** @var bool */
+            'uses_ai' => config('recommender.driver') === 'ai' && filled(config('recommender.ai.api_key')) && filled(config('recommender.ai.model')),
+        ]]);
+    }
+
     /**
      * Suggest a PC for a budget.
      *

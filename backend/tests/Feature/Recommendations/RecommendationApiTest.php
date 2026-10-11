@@ -109,3 +109,30 @@ it('limits how often one visitor can ask', function () {
 
     $this->postJson('/api/pc-builder/recommendations', ['budget' => 800000, 'purpose' => 'gaming'])->assertStatus(429);
 });
+
+it('lists what a build can be suggested for, so the form never hard-codes the choices', function () {
+    $this->getJson('/api/pc-builder/recommendations/options')
+        ->assertOk()
+        ->assertJsonPath('data.purposes', [
+            ['value' => 'gaming', 'label' => 'Gaming'],
+            ['value' => 'creation', 'label' => 'Video editing and 3D'],
+            ['value' => 'work', 'label' => 'Office, study and browsing'],
+        ])
+        ->assertJsonPath('data.priorities.0', ['value' => 'performance', 'label' => 'Best performance'])
+        ->assertJsonPath('data.resolutions.2', ['value' => '4k', 'label' => '4K'])
+        ->assertJsonPath('data.budget.min.amount', 50000)
+        ->assertJsonPath('data.budget.max.amount', 10000000)
+        ->assertJsonPath('data.max_games', 5)
+        ->assertJsonPath('data.uses_ai', false);
+});
+
+it('says an AI is used only when one is switched on AND able to answer', function (array $settings, bool $expected) {
+    config($settings);
+
+    $this->getJson('/api/pc-builder/recommendations/options')->assertJsonPath('data.uses_ai', $expected);
+})->with([
+    'switched on with a key and a model' => [['recommender.driver' => 'ai', 'recommender.ai.api_key' => 'k', 'recommender.ai.model' => 'm'], true],
+    'switched on without a key' => [['recommender.driver' => 'ai', 'recommender.ai.api_key' => null, 'recommender.ai.model' => 'm'], false],
+    'switched on without a model' => [['recommender.driver' => 'ai', 'recommender.ai.api_key' => 'k', 'recommender.ai.model' => ''], false],
+    'a key present but the shop set to rules' => [['recommender.driver' => 'rules', 'recommender.ai.api_key' => 'k', 'recommender.ai.model' => 'm'], false],
+]);

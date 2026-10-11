@@ -34,6 +34,6 @@ return [
         'cache_minutes' => (int) env('AI_CACHE_MINUTES', 60),
 
         // How many products per slot the AI is shown, spread from cheap to dear. More costs more of the daily allowance.
-        'candidates_per_slot' => 10,
+        'candidates_per_slot' => 8,
     ],
 ];

@@ -7225,6 +7225,81 @@
                 "security": []
             }
         },
+        "/pc-builder/recommendations/options": {
+            "get": {
+                "operationId": "recommendation.options",
+                "description": "The choices for the \"suggest a build\" form, so that their names live in one place. `uses_ai` says whether an AI\nservice is asked first on this shop; game titles are only worth asking for when it is.",
+                "summary": "What a build can be suggested for",
+                "tags": [
+                    "PC builder"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "purposes": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "priorities": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "resolutions": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "budget": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "min": {
+                                                            "$ref": "#/components/schemas/Money"
+                                                        },
+                                                        "max": {
+                                                            "$ref": "#/components/schemas/Money"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "min",
+                                                        "max"
+                                                    ]
+                                                },
+                                                "max_games": {
+                                                    "type": "integer",
+                                                    "const": 5
+                                                },
+                                                "uses_ai": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "purposes",
+                                                "priorities",
+                                                "resolutions",
+                                                "budget",
+                                                "max_games",
+                                                "uses_ai"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
         "/pc-builder/recommendations": {
             "post": {
                 "operationId": "recommendation.store",

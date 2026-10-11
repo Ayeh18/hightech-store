@@ -27,6 +27,22 @@ class AiRecommender implements BuildRecommender
 {
     private const MAX_REASON_LENGTH = 240;
 
+    /**
+     * The specifications the AI is shown for each slot: what decides whether parts fit together and how capable they
+     * are, and nothing else. Free AI services count every word sent, per minute and per day, so the question is kept
+     * short. (Leaving a specification out can only make the AI's proposal worse, never unsafe: the shop checks it.)
+     */
+    private const SPECS = [
+        'cpu' => ['socket', 'cores', 'threads', 'boost_clock_ghz', 'tdp_watts', 'integrated_graphics', 'cooler_included'],
+        'motherboard' => ['socket', 'ram_type', 'form_factor', 'ram_slots', 'm2_slots'],
+        'ram' => ['ram_type', 'capacity_gb', 'modules', 'speed_mhz'],
+        'gpu' => ['gpu_chipset', 'vram_gb', 'length_mm', 'tdp_watts', 'recommended_psu_watts'],
+        'storage' => ['storage_type', 'capacity_gb', 'form_factor', 'read_mbps'],
+        'psu' => ['wattage', 'efficiency', 'form_factor'],
+        'case' => ['supported_form_factors', 'gpu_max_length_mm', 'cpu_cooler_max_height_mm', 'psu_form_factor'],
+        'cooler' => ['cooler_type', 'height_mm', 'supported_sockets', 'tdp_rating_watts'],
+    ];
+
     /** @param  array{base_url: string, api_key: ?string, model: ?string, timeout_seconds: int, daily_limit: int, cache_minutes: int, candidates_per_slot: int}  $config */
     public function __construct(private readonly Http $http, private readonly Cache $cache, private readonly array $config) {}
 
@@ -82,7 +98,7 @@ class AiRecommender implements BuildRecommender
                 'id' => $c->product->id,
                 'name' => $c->product->name,
                 'price_rm' => round($c->priceSen / 100, 2),
-                'specs' => $c->part->specs,
+                'specs' => array_intersect_key($c->part->specs, array_flip(self::SPECS[$slot->value])),
             ], $within);
         }
 

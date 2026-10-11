@@ -255,6 +255,23 @@ export const usePcBuilderStore = defineStore('pcBuilder', () => {
     saveDraft()
   }
 
+  /**
+   * Replace the builder's contents with a build the server has just priced and checked (a suggested build). It becomes
+   * a new, unsaved build: nothing that was saved before is touched.
+   */
+  function applyBuild(build) {
+    const next = {}
+    for (const line of build.items) {
+      if (line.product) next[line.slot] = { product: line.product, quantity: line.quantity }
+    }
+    selection.value = next
+    buildId.value = null
+    buildName.value = ''
+    server.value = build
+    serverFresh.value = true
+    saveDraft()
+  }
+
   return {
     selectionPayload: payload,
     slots,
@@ -293,6 +310,7 @@ export const usePcBuilderStore = defineStore('pcBuilder', () => {
     detach,
     save,
     loadBuild,
+    applyBuild,
     validate,
     restoreDraft,
   }

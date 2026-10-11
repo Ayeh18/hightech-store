@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import CompatibilityStatus from '@/components/pc-builder/CompatibilityStatus.vue'
 import ComponentSelector from '@/components/pc-builder/ComponentSelector.vue'
 import ComponentSlotRow from '@/components/pc-builder/ComponentSlotRow.vue'
+import RecommendDialog from '@/components/pc-builder/RecommendDialog.vue'
 import SaveBuildDialog from '@/components/pc-builder/SaveBuildDialog.vue'
 import BuildSummary from '@/components/pc-builder/BuildSummary.vue'
 import AlertMessage from '@/components/ui/AlertMessage.vue'
@@ -32,6 +33,8 @@ const cart = useCartStore()
 const addingToCart = ref(false)
 const cartAdded = ref(false)
 const cartErrors = ref([])
+const recommendOpen = ref(false)
+const suggestionLoaded = ref(false)
 
 const choosingRow = computed(() => builder.rows.find((row) => row.slot === choosing.value) ?? null)
 
@@ -81,8 +84,21 @@ watch(
       cartAdded.value = false
     }
     cartErrors.value = []
+    suggestionLoaded.value = false
   },
 )
+
+// Put a suggested build into the builder. It arrives already priced and checked by the server, as a new, unsaved
+// build: from here the customer can change any part, save it or buy it, exactly like one they picked by hand.
+async function useSuggestion(build) {
+  recommendOpen.value = false
+  savedName.value = ''
+  cartAdded.value = false
+  builder.applyBuild(build)
+  if (route.name === 'builder-edit') router.replace({ name: 'builder' })
+  await nextTick() // after the watcher above has reacted to the new parts
+  suggestionLoaded.value = true
+}
 
 // Add the PC to the cart. The browser sends only WHICH parts; the server re-checks that the build is complete,
 // in stock and compatible, and prices it itself. If it refuses, we show its reasons and keep the parts.
@@ -179,24 +195,29 @@ function startOver() {
 
 <template>
   <div class="mx-auto max-w-7xl px-4 py-8 pb-28 sm:px-6 lg:pb-8">
-    <header class="mb-6">
-      <h1 class="font-display text-3xl font-semibold tracking-tight">Build your PC</h1>
-      <p class="mt-1 text-sm text-muted">
-        <template v-if="builder.buildId"
-          >Editing <span class="font-medium text-ink">{{ builder.buildName }}</span> ·
-          <button
-            type="button"
-            class="text-accent underline-offset-2 hover:underline"
-            @click="requestSave({ asNew: true })"
+    <header class="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+      <div>
+        <h1 class="font-display text-3xl font-semibold tracking-tight">Build your PC</h1>
+        <p class="mt-1 text-sm text-muted">
+          <template v-if="builder.buildId"
+            >Editing <span class="font-medium text-ink">{{ builder.buildName }}</span> ·
+            <button
+              type="button"
+              class="text-accent underline-offset-2 hover:underline"
+              @click="requestSave({ asNew: true })"
+            >
+              Save as a new build
+            </button>
+          </template>
+          <template v-else
+            >Pick a part for each slot. Your total updates as you go, and nothing is lost if you leave this
+            page.</template
           >
-            Save as a new build
-          </button>
-        </template>
-        <template v-else
-          >Pick a part for each slot. Your total updates as you go, and nothing is lost if you leave this
-          page.</template
-        >
-      </p>
+        </p>
+      </div>
+      <BaseButton v-if="!loading && builder.slots.length" variant="secondary" @click="recommendOpen = true">
+        Suggest a build for me
+      </BaseButton>
     </header>
 
     <div
@@ -233,6 +254,10 @@ function startOver() {
           <template v-if="savedUpdated">Changes to “{{ savedName }}” saved.</template>
           <template v-else>Saved as “{{ savedName }}”.</template>
           <RouterLink :to="{ name: 'my-builds' }" class="font-medium underline">View my builds</RouterLink>
+        </AlertMessage>
+
+        <AlertMessage v-if="suggestionLoaded" type="success">
+          The suggested build is loaded. Change any part you like, then save it or add it to your cart.
         </AlertMessage>
 
         <!-- Small screens: the verdict sits above the parts. Large screens show it in the side panel. -->
@@ -314,6 +339,13 @@ function startOver() {
       :context="context"
       @close="choosing = null"
       @select="onSelect"
+    />
+
+    <RecommendDialog
+      :open="recommendOpen"
+      :current-parts="builder.selectedCount"
+      @close="recommendOpen = false"
+      @use="useSuggestion"
     />
 
     <SaveBuildDialog

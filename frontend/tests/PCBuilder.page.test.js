@@ -340,3 +340,108 @@ describe('PC builder page: adding the build to the cart', () => {
     expect(wrapper.text()).toContain('Added to your cart.')
   })
 })
+
+describe('PC builder page: a suggested build', () => {
+  const ram = { ...cpu, id: 2, name: 'Test RAM' }
+  const suggestion = {
+    id: 'REC1',
+    source: 'rules',
+    brief: {
+      budget: money(400000),
+      purpose: { value: 'gaming', label: 'Gaming' },
+      priority: { value: 'balanced', label: 'Balanced' },
+    },
+    build: {
+      items: [
+        { slot: 'cpu', slot_label: 'CPU', quantity: 1, product: cpu, line_total: money(50000) },
+        { slot: 'ram', slot_label: 'RAM', quantity: 1, product: ram, line_total: money(50000) },
+      ],
+      subtotal: money(100000),
+      issues: [],
+      purchasable: true,
+      compatibility: { status: 'compatible', issues: [], metrics: {} },
+    },
+    reasons: [],
+    notes: [],
+    remaining: money(300000),
+  }
+
+  beforeEach(() => {
+    prepare()
+    const get = api.get.getMockImplementation()
+    api.get.mockImplementation(async (url) => {
+      if (url === '/api/pc-builder/recommendations/options') {
+        return {
+          data: {
+            data: {
+              purposes: [{ value: 'gaming', label: 'Gaming' }],
+              priorities: [{ value: 'balanced', label: 'Balanced' }],
+              resolutions: [{ value: '1080p', label: '1080p' }],
+              budget: { min: money(50000), max: money(10000000) },
+              max_games: 5,
+              uses_ai: false,
+            },
+          },
+        }
+      }
+      return get(url)
+    })
+    const post = api.post.getMockImplementation()
+    api.post.mockImplementation(async (url, body) => {
+      if (url === '/api/pc-builder/recommendations') return { data: { data: suggestion } }
+      return post(url, body)
+    })
+  })
+  afterEach(afterEachPage)
+
+  async function suggestAndUse(wrapper) {
+    await [...wrapper.findAll('button')].find((b) => b.text() === 'Suggest a build for me').trigger('click')
+    await flushPromises()
+    const input = document.body.querySelector('[role=dialog] input[placeholder="4000"]')
+    input.value = '4000'
+    input.dispatchEvent(new Event('input'))
+    await flushPromises()
+    document.body.querySelector('#recommend-form').dispatchEvent(new Event('submit', { cancelable: true }))
+    await flushPromises()
+    ;[...document.body.querySelectorAll('[role=dialog] button')]
+      .find((b) => b.textContent.trim() === 'Use this build')
+      .click()
+    await flushPromises()
+  }
+
+  it('loads the suggestion into the builder as a new build and says what to do next', async () => {
+    const { wrapper } = await mountAt('/builder')
+    const builder = usePcBuilderStore()
+
+    await suggestAndUse(wrapper)
+
+    expect(builder.selectedCount).toBe(2)
+    expect(builder.buildId).toBeNull()
+    expect(wrapper.text()).toContain('Test CPU')
+    expect(wrapper.text()).toContain('Test RAM')
+    expect(wrapper.text()).toContain('The suggested build is loaded.')
+    expect(document.body.querySelector('[role=dialog]')).toBeNull() // the dialog has closed
+  })
+
+  it('hides that message once the customer changes a part', async () => {
+    const { wrapper } = await mountAt('/builder')
+    await suggestAndUse(wrapper)
+
+    usePcBuilderStore().remove('ram')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('The suggested build is loaded.')
+  })
+
+  it('leaves a saved build untouched when a suggestion is used while editing it', async () => {
+    const { wrapper, r } = await mountAt('/builder/B1')
+    const builder = usePcBuilderStore()
+    expect(builder.buildId).toBe('B1')
+
+    await suggestAndUse(wrapper)
+
+    expect(builder.buildId).toBeNull() // a new build: saving it will not overwrite "Rig"
+    expect(r.currentRoute.value.name).toBe('builder')
+    expect(api.put).not.toHaveBeenCalled()
+  })
+})
