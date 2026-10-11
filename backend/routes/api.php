@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\Payments\FakeGatewayController;
 use App\Http\Controllers\Api\Payments\PaymentWebhookController;
 use App\Http\Controllers\Api\PcBuilder\BuildController;
 use App\Http\Controllers\Api\PcBuilder\PcBuilderController;
+use App\Http\Controllers\Api\PcBuilder\RecommendationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -166,6 +167,9 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('pc-builder/components', [PcBuilderController::class, 'components']);
 Route::post('pc-builder/validate', [PcBuilderController::class, 'validateBuild'])->middleware('throttle:60,1,builder-validate');
 Route::get('pc-builder/parts', [PcBuilderController::class, 'parts'])->middleware('throttle:120,1,builder-parts');
+// Suggesting a build may call an outside AI service with a small daily allowance, so it is limited more tightly.
+Route::post('pc-builder/recommendations', [RecommendationController::class, 'store'])->middleware('throttle:10,1,builder-recommend');
+Route::post('pc-builder/recommendations/{recommendation}/accept', [RecommendationController::class, 'accept'])->middleware('throttle:30,1,builder-recommend-accept');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('builds', [BuildController::class, 'index']);

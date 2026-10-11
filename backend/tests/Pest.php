@@ -303,3 +303,48 @@ function paidOrderAt(string $utc, ?array $lines = null): Order
 
     return $order->fresh();
 }
+
+/*
+| Shared helpers for build-recommendation tests.
+*/
+
+/**
+ * A small catalog with a known best answer for most briefs: two platforms (AM5 with DDR5, LGA1700 with DDR4), parts
+ * from cheap to dear, and the awkward cases a recommender must handle (a processor without built-in graphics, one
+ * without a cooler in the box, a case too short for the big graphics card).
+ *
+ * @return array<string, Product> keyed by a short name
+ */
+function miniCatalog(): array
+{
+    return [
+        // Processors
+        'cpu_am5' => specPart(BuilderSlot::Cpu, ['socket' => 'AM5', 'cores' => 6, 'threads' => 12, 'boost_clock_ghz' => 5.0, 'tdp_watts' => 65, 'integrated_graphics' => 'Yes', 'cooler_included' => 'Yes'], 80000, ['name' => 'Ryzen Six']),
+        'cpu_am5_big' => specPart(BuilderSlot::Cpu, ['socket' => 'AM5', 'cores' => 12, 'threads' => 24, 'boost_clock_ghz' => 5.6, 'tdp_watts' => 170, 'integrated_graphics' => 'Yes', 'cooler_included' => 'No'], 180000, ['name' => 'Ryzen Twelve']),
+        'cpu_lga' => specPart(BuilderSlot::Cpu, ['socket' => 'LGA1700', 'cores' => 6, 'threads' => 12, 'boost_clock_ghz' => 4.4, 'tdp_watts' => 65, 'integrated_graphics' => 'No', 'cooler_included' => 'Yes'], 50000, ['name' => 'Core Six F']),
+        // Motherboards
+        'mb_am5' => specPart(BuilderSlot::Motherboard, ['socket' => 'AM5', 'ram_type' => 'DDR5', 'form_factor' => 'ATX', 'ram_slots' => 4, 'max_ram_gb' => 192, 'm2_slots' => 3], 60000, ['name' => 'Board AM5']),
+        'mb_lga' => specPart(BuilderSlot::Motherboard, ['socket' => 'LGA1700', 'ram_type' => 'DDR4', 'form_factor' => 'Micro ATX', 'ram_slots' => 2, 'max_ram_gb' => 64, 'm2_slots' => 1], 35000, ['name' => 'Board LGA']),
+        // Memory
+        'ram_ddr5_16' => specPart(BuilderSlot::Ram, ['ram_type' => 'DDR5', 'capacity_gb' => 16, 'modules' => 2, 'speed_mhz' => 5600, 'cas_latency' => 40], 25000, ['name' => 'DDR5 16GB']),
+        'ram_ddr5_32' => specPart(BuilderSlot::Ram, ['ram_type' => 'DDR5', 'capacity_gb' => 32, 'modules' => 2, 'speed_mhz' => 6000, 'cas_latency' => 30], 45000, ['name' => 'DDR5 32GB']),
+        'ram_ddr4_16' => specPart(BuilderSlot::Ram, ['ram_type' => 'DDR4', 'capacity_gb' => 16, 'modules' => 2, 'speed_mhz' => 3600, 'cas_latency' => 18], 17000, ['name' => 'DDR4 16GB']),
+        // Graphics cards
+        'gpu_small' => specPart(BuilderSlot::Gpu, ['gpu_chipset' => 'RTX Small', 'vram_gb' => 8, 'length_mm' => 240, 'tdp_watts' => 150, 'recommended_psu_watts' => 550], 130000, ['name' => 'Card 8GB']),
+        'gpu_big' => specPart(BuilderSlot::Gpu, ['gpu_chipset' => 'RTX Big', 'vram_gb' => 16, 'length_mm' => 330, 'tdp_watts' => 300, 'recommended_psu_watts' => 750], 350000, ['name' => 'Card 16GB']),
+        // Storage
+        'ssd_500' => specPart(BuilderSlot::Storage, ['storage_type' => 'NVMe SSD', 'capacity_gb' => 500, 'form_factor' => 'M.2 2280', 'read_mbps' => 3500], 17000, ['name' => 'SSD 500GB']),
+        'ssd_1000' => specPart(BuilderSlot::Storage, ['storage_type' => 'NVMe SSD', 'capacity_gb' => 1000, 'form_factor' => 'M.2 2280', 'read_mbps' => 5000], 28000, ['name' => 'SSD 1TB']),
+        'ssd_2000' => specPart(BuilderSlot::Storage, ['storage_type' => 'NVMe SSD', 'capacity_gb' => 2000, 'form_factor' => 'M.2 2280', 'read_mbps' => 7000], 60000, ['name' => 'SSD 2TB']),
+        // Power supplies
+        'psu_450' => specPart(BuilderSlot::Psu, ['wattage' => 450, 'form_factor' => 'ATX', 'efficiency' => '80+ Bronze'], 18000, ['name' => 'Power 450W']),
+        'psu_750' => specPart(BuilderSlot::Psu, ['wattage' => 750, 'form_factor' => 'ATX', 'efficiency' => '80+ Gold'], 40000, ['name' => 'Power 750W']),
+        'psu_1000' => specPart(BuilderSlot::Psu, ['wattage' => 1000, 'form_factor' => 'ATX', 'efficiency' => '80+ Gold'], 80000, ['name' => 'Power 1000W']),
+        // Cases
+        'case_small' => specPart(BuilderSlot::Case_, ['supported_form_factors' => ['Micro ATX', 'Mini ITX'], 'gpu_max_length_mm' => 250, 'cpu_cooler_max_height_mm' => 160, 'psu_form_factor' => 'ATX'], 19000, ['name' => 'Case Small']),
+        'case_big' => specPart(BuilderSlot::Case_, ['supported_form_factors' => ['ATX', 'Micro ATX', 'Mini ITX'], 'gpu_max_length_mm' => 360, 'cpu_cooler_max_height_mm' => 170, 'psu_form_factor' => 'ATX'], 30000, ['name' => 'Case Big']),
+        // Coolers
+        'cooler_small' => specPart(BuilderSlot::Cooler, ['cooler_type' => 'Air', 'height_mm' => 135, 'supported_sockets' => ['AM5', 'AM4', 'LGA1700'], 'tdp_rating_watts' => 95], 6000, ['name' => 'Cooler 95W']),
+        'cooler_big' => specPart(BuilderSlot::Cooler, ['cooler_type' => 'Air', 'height_mm' => 155, 'supported_sockets' => ['AM5', 'AM4', 'LGA1700'], 'tdp_rating_watts' => 220], 13000, ['name' => 'Cooler 220W']),
+    ];
+}

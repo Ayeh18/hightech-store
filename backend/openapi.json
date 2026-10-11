@@ -21,7 +21,7 @@
         },
         {
             "name": "PC builder",
-            "description": "Choosing parts slot by slot, checking that they fit together, and saving builds."
+            "description": "Choosing parts slot by slot, checking that they fit together, getting a build suggested for a budget, and saving builds."
         },
         {
             "name": "Cart",
@@ -7225,6 +7225,138 @@
                 "security": []
             }
         },
+        "/pc-builder/recommendations": {
+            "post": {
+                "operationId": "recommendation.store",
+                "description": "Chooses a complete, compatible PC from the products in stock for the budget and purpose given. Whoever does the\nchoosing (the shop's own rules, or an AI service when one is switched on), the answer is checked the same way\nbefore it is returned: real products, in stock, compatible, and within the budget at the shop's own prices.\nA budget below the cheapest possible PC is answered with 422 and that price.\n\n**Rate limit:** 10 requests per minute",
+                "summary": "Suggest a PC for a budget",
+                "tags": [
+                    "PC builder"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RecommendBuildRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`BuildRecommendationResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/BuildRecommendationResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "An error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview.",
+                                            "examples": [
+                                                "We could not put a build together just now. Please try again in a moment."
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "429": {
+                        "description": "Too many requests. The `Retry-After` header says how many seconds to wait.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/pc-builder/recommendations/{recommendation}/accept": {
+            "post": {
+                "operationId": "recommendation.accept",
+                "description": "Called when the customer loads a suggestion into the builder. It only feeds the shop's own statistics.\n\n**Rate limit:** 30 requests per minute",
+                "summary": "Record that a suggested PC was used",
+                "tags": [
+                    "PC builder"
+                ],
+                "parameters": [
+                    {
+                        "name": "recommendation",
+                        "in": "path",
+                        "required": true,
+                        "description": "The recommendation ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "429": {
+                        "description": "Too many requests. The `Retry-After` header says how many seconds to wait.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
         "/builds": {
             "get": {
                 "operationId": "build.index",
@@ -9056,6 +9188,150 @@
                     "name"
                 ],
                 "title": "BrandResource"
+            },
+            "BuildPriority": {
+                "type": "string",
+                "description": "What matters most to the customer when two builds both fit the budget.\n",
+                "enum": [
+                    "performance",
+                    "balanced",
+                    "value"
+                ],
+                "title": "BuildPriority"
+            },
+            "BuildPurpose": {
+                "type": "string",
+                "description": "What the PC is for. It decides where the money goes: a gaming PC spends on graphics, an office PC needs none.\n",
+                "enum": [
+                    "gaming",
+                    "creation",
+                    "work"
+                ],
+                "title": "BuildPurpose"
+            },
+            "BuildRecommendationResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "source": {
+                        "type": "string",
+                        "description": "Who chose the parts: the shop's fixed rules, or an AI service whose choice then passed the shop's checks.",
+                        "enum": [
+                            "rules",
+                            "ai"
+                        ]
+                    },
+                    "brief": {
+                        "type": "object",
+                        "properties": {
+                            "budget": {
+                                "$ref": "#/components/schemas/Money"
+                            },
+                            "purpose": {
+                                "type": "object",
+                                "properties": {
+                                    "value": {
+                                        "type": "string"
+                                    },
+                                    "label": {
+                                        "type": "string",
+                                        "enum": [
+                                            "Gaming",
+                                            "Video editing and 3D",
+                                            "Office, study and browsing"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "value",
+                                    "label"
+                                ]
+                            },
+                            "priority": {
+                                "type": "object",
+                                "properties": {
+                                    "value": {
+                                        "type": "string"
+                                    },
+                                    "label": {
+                                        "type": "string",
+                                        "enum": [
+                                            "Best performance",
+                                            "Balanced",
+                                            "Save money"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "value",
+                                    "label"
+                                ]
+                            },
+                            "resolution": {
+                                "type": "object",
+                                "properties": {
+                                    "value": {
+                                        "type": "string"
+                                    },
+                                    "label": {
+                                        "type": "string",
+                                        "enum": [
+                                            "1080p (Full HD)",
+                                            "1440p (QHD)",
+                                            "4K"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "value",
+                                    "label"
+                                ]
+                            },
+                            "games": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "required": [
+                            "budget",
+                            "purpose",
+                            "priority",
+                            "resolution",
+                            "games"
+                        ]
+                    },
+                    "build": {
+                        "$ref": "#/components/schemas/EvaluatedBuildResource"
+                    },
+                    "reasons": {
+                        "type": "array",
+                        "description": "Why each part, in builder order.",
+                        "items": {}
+                    },
+                    "notes": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "remaining": {
+                        "$ref": "#/components/schemas/Money"
+                    }
+                },
+                "required": [
+                    "id",
+                    "source",
+                    "brief",
+                    "build",
+                    "reasons",
+                    "notes",
+                    "remaining"
+                ],
+                "title": "BuildRecommendationResource"
             },
             "BuildSelectionRequest": {
                 "type": "object",
@@ -11192,6 +11468,43 @@
                 ],
                 "title": "ProductStatus"
             },
+            "RecommendBuildRequest": {
+                "type": "object",
+                "description": "\"Suggest a PC for me\": a budget and what the PC is for. Everything else has a sensible default.",
+                "properties": {
+                    "budget": {
+                        "type": "integer",
+                        "description": "In sen, like every amount: 400000 is RM 4,000.00.",
+                        "minimum": 50000,
+                        "maximum": 10000000
+                    },
+                    "purpose": {
+                        "$ref": "#/components/schemas/BuildPurpose"
+                    },
+                    "priority": {
+                        "$ref": "#/components/schemas/BuildPriority"
+                    },
+                    "resolution": {
+                        "$ref": "#/components/schemas/TargetResolution"
+                    },
+                    "games": {
+                        "type": "array",
+                        "description": "Titles the customer plays. Only an AI recommender reads them, as a hint; plain words only.",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[\\pL\\pN][\\pL\\pN \\-:'.&+!]*$",
+                            "maxLength": 40
+                        },
+                        "maxItems": 5,
+                        "uniqueItems": true
+                    }
+                },
+                "required": [
+                    "budget",
+                    "purpose"
+                ],
+                "title": "RecommendBuildRequest"
+            },
             "RefundRequestRequest": {
                 "type": "object",
                 "properties": {
@@ -11672,6 +11985,16 @@
                     "image"
                 ],
                 "title": "StoreProductImageRequest"
+            },
+            "TargetResolution": {
+                "type": "string",
+                "description": "The screen the PC will drive. A sharper screen needs a graphics card with more memory.\n",
+                "enum": [
+                    "1080p",
+                    "1440p",
+                    "4k"
+                ],
+                "title": "TargetResolution"
             },
             "UpdateCartItemRequest": {
                 "type": "object",

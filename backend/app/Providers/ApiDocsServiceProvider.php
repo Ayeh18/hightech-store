@@ -42,7 +42,7 @@ class ApiDocsServiceProvider extends ServiceProvider
     private const GROUPS = [
         'Account' => ['Registering, logging in and out, and the delivery addresses of the logged-in customer.', ['AuthController', 'AddressController']],
         'Catalog' => ['Products, categories, brands and the specifications a category has. Reading is public; changing needs a permission.', ['Catalog\ProductController', 'Catalog\CategoryController', 'Catalog\BrandController', 'Catalog\SpecDefinitionController', 'Catalog\ProductImageController', 'Catalog\InventoryController']],
-        'PC builder' => ['Choosing parts slot by slot, checking that they fit together, and saving builds.', ['PcBuilderController', 'BuildController', 'CompatibilityRuleController']],
+        'PC builder' => ['Choosing parts slot by slot, checking that they fit together, getting a build suggested for a budget, and saving builds.', ['PcBuilderController', 'RecommendationController', 'BuildController', 'CompatibilityRuleController']],
         'Cart' => ['The logged-in customer\'s cart. Every answer is the whole cart, re-priced and re-checked by the server.', ['CartController', 'CartItemController', 'CartProductController', 'CartBuildController']],
         'Checkout and orders' => ['Turning the cart into an order, and the customer\'s own orders.', ['CheckoutController', 'Orders\OrderController', 'OrderRefundController']],
         'Payments' => ['Starting a payment, and the webhook the payment company calls.', ['Orders\PaymentController', 'PaymentWebhookController']],

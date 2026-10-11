@@ -106,6 +106,11 @@ it('describes the PC builder as it really is', function () {
     $ref->check($this->postJson('/api/pc-builder/validate', pcPayload($wrong)), 'POST', '/pc-builder/validate', 200);
     $ref->check($this->postJson('/api/pc-builder/validate', ['items' => [['slot' => 'nonsense']]]), 'POST', '/pc-builder/validate', 422);
 
+    // A suggested build: enough budget for the six parts above (RM 2,700), then too little.
+    $suggested = $ref->check($this->postJson('/api/pc-builder/recommendations', ['budget' => 400000, 'purpose' => 'work', 'games' => ['Valorant']]), 'POST', '/pc-builder/recommendations', 200);
+    $ref->check($this->postJson('/api/pc-builder/recommendations', ['budget' => 100000, 'purpose' => 'gaming']), 'POST', '/pc-builder/recommendations', 422);
+    $ref->check($this->postJson('/api/pc-builder/recommendations/'.$suggested->json('data.id').'/accept'), 'POST', '/pc-builder/recommendations/{recommendation}/accept', 204);
+
     $saved = $ref->check($this->actingAs($user)->postJson('/api/builds', pcPayload($pc, ['name' => 'My first PC'])), 'POST', '/builds', 201);
     $ref->check($this->actingAs($user)->getJson('/api/builds'), 'GET', '/builds', 200);
     $ref->check($this->actingAs($user)->getJson('/api/builds/'.$saved->json('data.id')), 'GET', '/builds/{build}', 200);
