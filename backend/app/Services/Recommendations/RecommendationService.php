@@ -3,6 +3,7 @@
 namespace App\Services\Recommendations;
 
 use App\Enums\BuilderSlot;
+use App\Enums\RecommenderFailure;
 use App\Models\BuildRecommendation;
 use App\Models\User;
 use App\Services\PcBuilder\BuildEvaluator;
@@ -39,6 +40,7 @@ class RecommendationService
     {
         $candidates = Candidates::load();
         $fallbackReason = null;
+        $fallbackKind = null;
         $accepted = null;
 
         if ($this->assistant !== null) {
@@ -48,6 +50,7 @@ class RecommendationService
             } catch (CannotRecommend $e) {
                 // Not an error for the customer: the rules below answer instead. Kept for the shop's own records.
                 $fallbackReason = $e->getMessage();
+                $fallbackKind = $e->failure;
                 Log::info('The AI recommendation was not used.', ['reason' => $fallbackReason]);
             }
         }
@@ -73,6 +76,7 @@ class RecommendationService
             'games' => $brief->games ?: null,
             'source' => $source,
             'fallback_reason' => $fallbackReason === null ? null : mb_substr($fallbackReason, 0, 255),
+            'fallback_kind' => $fallbackKind,
             'total' => $build->priced->subtotal,
             'selection' => array_map(fn (array $pick) => $pick['product_id'], $proposal->picks),
         ]);
@@ -92,7 +96,7 @@ class RecommendationService
             $slot = BuilderSlot::tryFrom((string) $slotValue);
 
             if ($slot === null || $candidates->find($slot, $pick['product_id']) === null) {
-                throw new CannotRecommend("It chose product #{$pick['product_id']} for \"{$slotValue}\", which is not one of the products it was offered for that slot.");
+                throw new CannotRecommend("It chose product #{$pick['product_id']} for \"{$slotValue}\", which is not one of the products it was offered for that slot.", RecommenderFailure::NotOffered);
             }
 
             if ($pick['quantity'] < 1 || $pick['quantity'] > $slot->maxQuantity()) {
@@ -108,7 +112,7 @@ class RecommendationService
         }
 
         if (! $build->priced->isComplete()) {
-            throw new CannotRecommend('It left out a part every PC needs: '.implode(', ', array_map(fn (BuilderSlot $s) => $s->label(), $build->priced->missingSlots)).'.');
+            throw new CannotRecommend('It left out a part every PC needs: '.implode(', ', array_map(fn (BuilderSlot $s) => $s->label(), $build->priced->missingSlots)).'.', RecommenderFailure::Incomplete);
         }
 
         if (! $build->isPurchasable()) {
@@ -116,18 +120,18 @@ class RecommendationService
                 ? collect($build->compatibility->issues)->firstWhere('severity', 'error')->message
                 : ($build->priced->issues[0]->message ?? 'a part cannot be bought');
 
-            throw new CannotRecommend("Its parts do not work together: {$problem}");
+            throw new CannotRecommend("Its parts do not work together: {$problem}", RecommenderFailure::Incompatible);
         }
 
         foreach ($build->compatibility->issues as $issue) {
             if (in_array($issue->rule, self::ESSENTIAL, true)) {
-                throw new CannotRecommend("The PC would not be usable: {$issue->message}");
+                throw new CannotRecommend("The PC would not be usable: {$issue->message}", RecommenderFailure::Unusable);
             }
         }
 
         // 3. Within budget, at the shop's prices.
         if ($build->priced->subtotal->sen > $brief->budget->sen) {
-            throw new CannotRecommend("It costs {$build->priced->subtotal->format()}, which is over the budget of {$brief->budget->format()}.");
+            throw new CannotRecommend("It costs {$build->priced->subtotal->format()}, which is over the budget of {$brief->budget->format()}.", RecommenderFailure::OverBudget);
         }
 
         return $build;

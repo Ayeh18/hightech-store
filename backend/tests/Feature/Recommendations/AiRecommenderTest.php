@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\BuilderSlot;
+use App\Enums\RecommenderFailure;
 use App\Models\BuildRecommendation;
 use App\Models\Inventory;
 use App\Models\Product;
@@ -51,7 +52,7 @@ function recommend(array $body = [])
 }
 
 /** The customer still gets a valid build from the shop's own rules, and is told the AI was not used. */
-function expectFallback($response, string $because): void
+function expectFallback($response, string $because, RecommenderFailure $kind): void
 {
     $response->assertOk()
         ->assertJsonPath('data.source', 'rules')
@@ -60,7 +61,9 @@ function expectFallback($response, string $because): void
 
     expect(implode(' ', $response->json('data.notes')))->toContain('The AI suggestion could not be used this time')
         ->and($response->json('data.build.subtotal.amount'))->toBeLessThanOrEqual(600000)
-        ->and(BuildRecommendation::findOrFail($response->json('data.id'))->fallback_reason)->toContain($because);
+        ->and(BuildRecommendation::findOrFail($response->json('data.id'))->fallback_reason)->toContain($because)
+        // The kind is what the shop's insights count: the sentence above differs from one product or amount to the next.
+        ->and(BuildRecommendation::findOrFail($response->json('data.id'))->fallback_kind)->toBe($kind);
 }
 
 it('uses the AI\'s build when it passes every check, with the AI\'s reasons and the shop\'s prices', function () {
@@ -127,33 +130,33 @@ it('never shows the AI\'s key or its raw answer to the customer', function () {
 it('ignores a product the AI made up', function () {
     aiAnswers(aiBuild($this->parts, ['gpu' => 999999]));
 
-    expectFallback(recommend(), 'It chose product #999999 for "gpu", which is not one of the products it was offered');
+    expectFallback(recommend(), 'It chose product #999999 for "gpu", which is not one of the products it was offered', RecommenderFailure::NotOffered);
 });
 
 it('ignores a real product put in the wrong slot', function () {
     aiAnswers(aiBuild($this->parts, ['gpu' => $this->parts['psu_750']]));
 
-    expectFallback(recommend(), 'is not one of the products it was offered for that slot');
+    expectFallback(recommend(), 'is not one of the products it was offered for that slot', RecommenderFailure::NotOffered);
 });
 
 it('ignores a product that is out of stock or no longer on sale', function () {
     Inventory::where('product_id', $this->parts['gpu_small']->id)->update(['stock' => 0]);
     aiAnswers(aiBuild($this->parts));
 
-    expectFallback(recommend(), 'is not one of the products it was offered');
+    expectFallback(recommend(), 'is not one of the products it was offered', RecommenderFailure::NotOffered);
 });
 
 it('ignores a price the AI states: only the shop\'s prices count', function () {
     // The AI claims the dear card costs RM 1; the real build would be RM 8,330, over the RM 6,000 budget.
     aiAnswers(aiBuild($this->parts, ['gpu' => $this->parts['gpu_big']]), extra: ['gpu' => ['price_rm' => 1, 'price' => 100]]);
 
-    expectFallback(recommend(), 'which is over the budget of RM 6,000.00');
+    expectFallback(recommend(), 'which is over the budget of RM 6,000.00', RecommenderFailure::OverBudget);
 });
 
 it('ignores parts that do not fit together', function (array $changes, string $because) {
     aiAnswers(aiBuild($this->parts, array_map(fn (string $name) => $this->parts[$name], $changes)));
 
-    expectFallback(recommend(), $because);
+    expectFallback(recommend(), $because, RecommenderFailure::Incompatible);
 })->with([
     'an AM5 processor on an LGA1700 board' => [['motherboard' => 'mb_lga', 'ram' => 'ram_ddr4_16'], 'Its parts do not work together'],
     'DDR4 memory on a DDR5 board' => [['ram' => 'ram_ddr4_16'], 'Its parts do not work together'],
@@ -166,7 +169,7 @@ it('ignores a PC that could not be used', function () {
     unset($build['gpu']);
     aiAnswers($build);
 
-    expectFallback(recommend(), 'The PC would not be usable');
+    expectFallback(recommend(), 'The PC would not be usable', RecommenderFailure::Unusable);
 });
 
 it('ignores a build with a part missing', function () {
@@ -174,13 +177,13 @@ it('ignores a build with a part missing', function () {
     unset($build['storage']);
     aiAnswers($build);
 
-    expectFallback(recommend(), 'It left out a part every PC needs: Storage');
+    expectFallback(recommend(), 'It left out a part every PC needs: Storage', RecommenderFailure::Incomplete);
 });
 
 it('ignores an answer it cannot read', function (string $answer, string $because) {
     aiAnswers($answer);
 
-    expectFallback(recommend(), $because);
+    expectFallback(recommend(), $because, RecommenderFailure::Unreadable);
 })->with([
     'prose instead of data' => ['Sure! I would pick a Ryzen and a nice graphics card.', 'was not the structured data'],
     'data in another shape' => ['{"build": {"cpu": 1}}', 'listed no parts'],
@@ -190,16 +193,16 @@ it('ignores an answer it cannot read', function (string $answer, string $because
     'the same slot twice' => ['{"parts": [{"slot": "cpu", "id": 1}, {"slot": "cpu", "id": 2}]}', 'could not be read'],
 ]);
 
-it('falls back when the AI service is down, slow or refuses', function (callable $failure, string $because) {
+it('falls back when the AI service is down, slow or refuses', function (callable $failure, string $because, RecommenderFailure $kind) {
     Http::fake(['ai.test/*' => $failure]);
 
-    expectFallback(recommend(), $because);
+    expectFallback(recommend(), $because, $kind);
 })->with([
-    'a server error' => [fn () => Http::response(['error' => 'boom'], 500), 'answered with an error (500)'],
-    'too many requests' => [fn () => Http::response(['error' => 'rate limit'], 429), 'answered with an error (429)'],
-    'a wrong key' => [fn () => Http::response(['error' => 'unauthorized'], 401), 'answered with an error (401)'],
-    'no connection or a timeout' => [fn () => throw new ConnectionException('cURL error 28: Operation timed out'), 'could not be reached'],
-    'an answer with nothing in it' => [fn () => Http::response(['choices' => []]), 'sent back an empty answer'],
+    'a server error' => [fn () => Http::response(['error' => 'boom'], 500), 'answered with an error (500)', RecommenderFailure::ServiceError],
+    'too many requests' => [fn () => Http::response(['error' => 'rate limit'], 429), 'answered with an error (429)', RecommenderFailure::ServiceError],
+    'a wrong key' => [fn () => Http::response(['error' => 'unauthorized'], 401), 'answered with an error (401)', RecommenderFailure::ServiceError],
+    'no connection or a timeout' => [fn () => throw new ConnectionException('cURL error 28: Operation timed out'), 'could not be reached', RecommenderFailure::Unreachable],
+    'an answer with nothing in it' => [fn () => Http::response(['choices' => []]), 'sent back an empty answer', RecommenderFailure::Unreadable],
 ]);
 
 it('keeps the reason for a fallback in the shop\'s records and its log, never in what the customer sees', function () {
@@ -245,7 +248,7 @@ it('stops asking once the day\'s allowance is used, and starts again the next da
 
     recommend(['budget' => 600000])->assertJsonPath('data.source', 'ai');
     recommend(['budget' => 610000])->assertJsonPath('data.source', 'ai');
-    expectFallback(recommend(['budget' => 620000]), "Today's allowance of 2 AI requests is used up");
+    expectFallback(recommend(['budget' => 620000]), "Today's allowance of 2 AI requests is used up", RecommenderFailure::AllowanceUsed);
     Http::assertSentCount(2);
 
     $this->travel(1)->days();
@@ -256,7 +259,7 @@ it('stops asking once the day\'s allowance is used, and starts again the next da
 it('does not call anyone when the AI is switched on but has no key or no model', function (string $missing) {
     config(["recommender.ai.{$missing}" => null]);
 
-    expectFallback(recommend(), 'The AI service is not set up');
+    expectFallback(recommend(), 'The AI service is not set up', RecommenderFailure::NotSetUp);
     Http::assertNothingSent();
 })->with(['api_key', 'model']);
 

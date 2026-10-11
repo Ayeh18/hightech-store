@@ -3,6 +3,7 @@
 namespace App\Services\Recommendations;
 
 use App\Enums\BuilderSlot;
+use App\Enums\RecommenderFailure;
 use App\Services\Recommendations\Contracts\BuildRecommender;
 use App\Services\Recommendations\Exceptions\CannotRecommend;
 use Illuminate\Contracts\Cache\Repository as Cache;
@@ -54,7 +55,7 @@ class AiRecommender implements BuildRecommender
     public function propose(BuildBrief $brief, Candidates $candidates): ProposedBuild
     {
         if (blank($this->config['api_key']) || blank($this->config['model'])) {
-            throw new CannotRecommend('The AI service is not set up (AI_API_KEY and AI_MODEL are needed).');
+            throw new CannotRecommend('The AI service is not set up (AI_API_KEY and AI_MODEL are needed).', RecommenderFailure::NotSetUp);
         }
 
         $shortlist = $this->shortlist($brief, $candidates);
@@ -158,17 +159,17 @@ class AiRecommender implements BuildRecommender
                     ],
                 ]);
         } catch (Throwable $e) {
-            throw new CannotRecommend('The AI service could not be reached: '.class_basename($e).'.');
+            throw new CannotRecommend('The AI service could not be reached: '.class_basename($e).'.', RecommenderFailure::Unreachable);
         }
 
         if (! $response->successful()) {
-            throw new CannotRecommend("The AI service answered with an error ({$response->status()}).");
+            throw new CannotRecommend("The AI service answered with an error ({$response->status()}).", RecommenderFailure::ServiceError);
         }
 
         $content = $response->json('choices.0.message.content');
 
         if (! is_string($content) || trim($content) === '') {
-            throw new CannotRecommend('The AI service sent back an empty answer.');
+            throw new CannotRecommend('The AI service sent back an empty answer.', RecommenderFailure::Unreadable);
         }
 
         return $content;
@@ -180,11 +181,11 @@ class AiRecommender implements BuildRecommender
         try {
             $data = json_decode($answer, true, 16, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
-            throw new CannotRecommend('The AI\'s answer was not the structured data that was asked for.');
+            throw new CannotRecommend('The AI\'s answer was not the structured data that was asked for.', RecommenderFailure::Unreadable);
         }
 
         if (! is_array($data) || ! is_array($data['parts'] ?? null) || $data['parts'] === []) {
-            throw new CannotRecommend('The AI\'s answer listed no parts.');
+            throw new CannotRecommend('The AI\'s answer listed no parts.', RecommenderFailure::Unreadable);
         }
 
         $picks = [];
@@ -194,7 +195,7 @@ class AiRecommender implements BuildRecommender
             $id = is_array($part) ? ($part['id'] ?? null) : null;
 
             if ($slot === null || ! is_int($id) || isset($picks[$slot->value])) {
-                throw new CannotRecommend('The AI\'s answer had a part that could not be read (an unknown slot, a slot named twice, or no product id).');
+                throw new CannotRecommend('The AI\'s answer had a part that could not be read (an unknown slot, a slot named twice, or no product id).', RecommenderFailure::Unreadable);
             }
 
             $picks[$slot->value] = ['product_id' => $id, 'quantity' => 1, 'reason' => $this->tidy($part['reason'] ?? '', self::MAX_REASON_LENGTH)];
@@ -227,7 +228,7 @@ class AiRecommender implements BuildRecommender
         $this->cache->add($key, 0, now()->addDay());
 
         if ((int) $this->cache->increment($key) > $limit) {
-            throw new CannotRecommend("Today's allowance of {$limit} AI requests is used up.");
+            throw new CannotRecommend("Today's allowance of {$limit} AI requests is used up.", RecommenderFailure::AllowanceUsed);
         }
     }
 }

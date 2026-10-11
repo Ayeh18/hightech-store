@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Casts\MoneyCast;
 use App\Enums\BuildPriority;
 use App\Enums\BuildPurpose;
+use App\Enums\RecommenderFailure;
 use App\Enums\TargetResolution;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /** A build the shop suggested for a budget. See the create_build_recommendations_table migration. */
-#[Fillable(['user_id', 'budget', 'purpose', 'priority', 'resolution', 'games', 'source', 'fallback_reason', 'total', 'selection', 'accepted_at'])]
+#[Fillable(['user_id', 'budget', 'purpose', 'priority', 'resolution', 'games', 'source', 'fallback_reason', 'fallback_kind', 'total', 'selection', 'accepted_at'])]
 class BuildRecommendation extends Model
 {
     use HasUlids;
@@ -27,6 +28,7 @@ class BuildRecommendation extends Model
             'purpose' => BuildPurpose::class,
             'priority' => BuildPriority::class,
             'resolution' => TargetResolution::class,
+            'fallback_kind' => RecommenderFailure::class,
             'games' => 'array',
             'selection' => 'array',
             'accepted_at' => 'datetime',
