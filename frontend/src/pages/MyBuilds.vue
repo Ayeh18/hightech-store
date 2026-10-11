@@ -1,7 +1,8 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import SaveBuildDialog from '@/components/pc-builder/SaveBuildDialog.vue'
+import ShareBuildDialog from '@/components/pc-builder/ShareBuildDialog.vue'
 import AlertMessage from '@/components/ui/AlertMessage.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
@@ -17,6 +18,8 @@ const router = useRouter()
 
 const renaming = ref(null)
 const deleting = ref(null)
+const sharingId = ref(null) // by id, so the dialog always shows the build's latest state
+const sharing = computed(() => store.builds.find((b) => b.id === sharingId.value) ?? null)
 const busy = ref(false)
 const actionError = ref('')
 const cart = useCartStore()
@@ -174,6 +177,9 @@ async function confirmDelete() {
             <p class="font-display text-xl font-bold tabular-nums">{{ build.subtotal.formatted }}</p>
             <p class="text-xs text-muted">Edited {{ when(build.updated_at) }}</p>
           </div>
+          <span v-if="build.share" class="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-medium text-accent"
+            >Shared by link</span
+          >
         </div>
 
         <div class="mt-4 flex flex-wrap gap-2">
@@ -189,6 +195,7 @@ async function confirmDelete() {
           <BaseButton variant="secondary" class="!px-4 !py-2" :disabled="busy" @click="duplicate(build)"
             >Duplicate</BaseButton
           >
+          <BaseButton variant="ghost" class="!px-3 !py-2" @click="sharingId = build.id">Share</BaseButton>
           <BaseButton variant="ghost" class="!px-3 !py-2" @click="((renameError = ''), (renaming = build))"
             >Rename</BaseButton
           >
@@ -212,6 +219,8 @@ async function confirmDelete() {
       @close="renaming = null"
       @confirm="confirmRename"
     />
+
+    <ShareBuildDialog :open="sharing !== null" :build="sharing" @close="sharingId = null" />
 
     <BaseModal :open="deleting !== null" title="Delete this build?" @close="deleting = null">
       <div class="space-y-3 p-5 text-sm">

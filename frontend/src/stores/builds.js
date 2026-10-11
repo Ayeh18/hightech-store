@@ -39,5 +39,19 @@ export const useBuildsStore = defineStore('builds', () => {
     await fetchBuilds()
   }
 
-  return { builds, loading, loaded, error, fetchBuilds, rename, remove, duplicate }
+  /** Create the build's public link (or get the one it already has). */
+  async function share(id) {
+    const { data } = await api.post(`/api/builds/${id}/share`)
+    const build = builds.value.find((b) => b.id === id)
+    if (build) build.share = data.data
+  }
+
+  /** Switch the public link off. It never works again; sharing later makes a new one. */
+  async function stopSharing(id) {
+    await api.delete(`/api/builds/${id}/share`)
+    const build = builds.value.find((b) => b.id === id)
+    if (build) build.share = null
+  }
+
+  return { builds, loading, loaded, error, fetchBuilds, rename, remove, duplicate, share, stopSharing }
 })

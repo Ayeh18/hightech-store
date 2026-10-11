@@ -54,6 +54,8 @@ const routes = [
     component: () => import('@/pages/MyBuilds.vue'),
     meta: { requiresAuth: true },
   },
+  // A build someone shared by link. Public: the long random token in the address is the permission.
+  { path: '/shared/:token', name: 'shared-build', component: () => import('@/pages/SharedBuild.vue') },
   { path: '/products', name: 'products', component: () => import('@/pages/Products.vue') },
   { path: '/products/:slug', name: 'product', component: () => import('@/pages/ProductDetail.vue') },
   {
@@ -186,6 +188,7 @@ const TITLES = {
   builder: `PC Builder · ${SITE}`,
   'builder-edit': `PC Builder · ${SITE}`,
   'my-builds': `My builds · ${SITE}`,
+  'shared-build': `A shared PC build · ${SITE}`,
   cart: `Your cart · ${SITE}`,
   checkout: `Checkout · ${SITE}`,
   orders: `My orders · ${SITE}`,
