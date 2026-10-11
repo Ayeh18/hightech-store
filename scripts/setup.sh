@@ -19,5 +19,5 @@ docker compose build app
 docker compose run --rm app composer install --no-interaction
 docker compose run --rm app php artisan key:generate
 # The website's packages, installed with the same Node version the frontend container runs (no Node needed on this computer).
-docker compose run --rm --no-deps frontend npm ci
+docker compose run --rm --no-deps -e npm_config_cache=/tmp/.npm frontend npm ci
 echo "Done. Next: docker compose up -d && docker compose exec app php artisan migrate --seed"
