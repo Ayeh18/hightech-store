@@ -56,7 +56,10 @@ return [
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
-            'throw' => false,
+            // A remote store can fail (outage, wrong key). Fail loudly instead of returning false, so a photo that was not
+            // saved is never recorded as saved. No "visibility" here: Cloudflare R2 and Supabase ignore ACLs, and the bucket
+            // itself is what is made public.
+            'throw' => true,
             'report' => false,
         ],
 

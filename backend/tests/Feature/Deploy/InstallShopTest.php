@@ -7,7 +7,9 @@ use App\Models\Permission;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 function installWith(array $settings = [], array $options = [])
 {
@@ -111,4 +113,47 @@ describe('the demo catalog', function () {
 
         expect(Product::withTrashed()->count())->toBe(1);
     });
+});
+
+/** An S3-compatible photo store with every setting filled in (faked by a folder on this computer). */
+function completePhotoStore(array $overrides = []): void
+{
+    config([
+        'shop.image_disk' => 's3',
+        'filesystems.disks.s3' => array_merge(['driver' => 's3', 'key' => 'k', 'secret' => 's', 'bucket' => 'photos', 'region' => 'auto', 'url' => 'https://photos.example.com', 'endpoint' => 'https://abc.r2.example.com'], $overrides),
+    ]);
+    Storage::fake('s3');
+}
+
+it('says where photos are kept, and warns that this server\'s own disk does not survive a free host', function () {
+    installWith()->expectsOutputToContain("Photos are kept on this server's own disk")->assertSuccessful();
+});
+
+it('refuses an IMAGE_DISK that is not a disk', function () {
+    config(['shop.image_disk' => 'dropbox']);
+
+    installWith()->expectsOutputToContain('"dropbox", which is not a disk this shop knows')->assertFailed();
+});
+
+it('names every setting a photo store is missing, instead of failing on the first upload', function () {
+    completePhotoStore(['key' => null, 'bucket' => '', 'url' => null]);
+
+    installWith()->expectsOutputToContain('these settings are missing: AWS_ACCESS_KEY_ID, AWS_BUCKET, AWS_URL.')->assertFailed();
+});
+
+it('proves a complete photo store works by writing a test file and removing it again', function () {
+    completePhotoStore();
+
+    installWith()->expectsOutputToContain('Photo storage (s3) works')->assertSuccessful();
+
+    expect(Storage::disk('s3')->allFiles())->toBe([]);
+});
+
+it('only warns when the photo store cannot be reached, so one slow provider cannot keep the whole shop offline', function () {
+    completePhotoStore();
+    $store = Mockery::mock(Filesystem::class);
+    $store->shouldReceive('put')->andThrow(new RuntimeException("Access Denied\nsecond line"));
+    Storage::set('s3', $store);
+
+    installWith()->expectsOutputToContain('could not be written to, so photo uploads will fail until this is fixed: Access Denied')->assertSuccessful();
 });

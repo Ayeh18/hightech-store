@@ -23,6 +23,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Where product photos are kept
+    |--------------------------------------------------------------------------
+    | "public" is this server's own disk (fine for development, lost on a free host that restarts). "s3" is any S3-compatible
+    | store (Cloudflare R2, Backblaze B2, Supabase Storage, AWS S3...), set up with the AWS_* variables. The database keeps only
+    | each photo's path, so changing this means copying the files across (php artisan shop:copy-images).
+    */
+    'image_disk' => env('IMAGE_DISK', 'public'),
+
+    /*
+    |--------------------------------------------------------------------------
     | First-run setup (php artisan shop:install)
     |--------------------------------------------------------------------------
     | Used when the shop is put on a real server for the first time. It creates the first admin from these settings

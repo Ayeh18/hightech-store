@@ -8,10 +8,11 @@ use App\Models\User;
 use App\Services\AuditLogger;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 /**
  * Stores product photos safely: the upload is decoded and re-encoded as WebP, which strips metadata
@@ -32,27 +33,39 @@ class ProductImageService
         }
 
         $path = "products/{$product->id}/".Str::ulid().'.webp';
-        Storage::disk('public')->put($path, $this->toWebp($file));
+        $binary = $this->toWebp($file); // an unusable file is refused before anything is written
 
-        return DB::transaction(function () use ($product, $path, $alt, $makePrimary, $actor) {
-            $isFirst = ! $product->images()->exists();
-            $primary = $makePrimary || $isFirst;
+        try {
+            ProductImage::disk()->put($path, $binary, ['CacheControl' => ProductImage::CACHE_CONTROL]);
+        } catch (Throwable $e) {
+            report($e);
+            abort(Response::HTTP_SERVICE_UNAVAILABLE, 'The photo could not be saved to storage. Please try again in a moment.');
+        }
 
-            if ($primary) {
-                $product->images()->update(['is_primary' => false]);
-            }
+        try {
+            return DB::transaction(function () use ($product, $path, $alt, $makePrimary, $actor) {
+                $isFirst = ! $product->images()->exists();
+                $primary = $makePrimary || $isFirst;
 
-            $image = $product->images()->create([
-                'path' => $path,
-                'alt' => $alt ?? $product->name,
-                'is_primary' => $primary,
-                'sort_order' => (int) $product->images()->max('sort_order') + 1,
-            ]);
+                if ($primary) {
+                    $product->images()->update(['is_primary' => false]);
+                }
 
-            $this->audit->log('product.image_added', $actor, $product, null, ['image_id' => $image->id]);
+                $image = $product->images()->create([
+                    'path' => $path,
+                    'alt' => $alt ?? $product->name,
+                    'is_primary' => $primary,
+                    'sort_order' => (int) $product->images()->max('sort_order') + 1,
+                ]);
 
-            return $image;
-        });
+                $this->audit->log('product.image_added', $actor, $product, null, ['image_id' => $image->id]);
+
+                return $image;
+            });
+        } catch (Throwable $e) {
+            $this->forget($path); // the database refused it: do not leave the file behind
+            throw $e;
+        }
     }
 
     public function delete(ProductImage $image, User $actor): void
@@ -60,7 +73,6 @@ class ProductImageService
         DB::transaction(function () use ($image, $actor) {
             $product = $image->product;
             $wasPrimary = $image->is_primary;
-            Storage::disk('public')->delete($image->path);
             $image->delete();
 
             if ($wasPrimary) {
@@ -69,6 +81,20 @@ class ProductImageService
 
             $this->audit->log('product.image_removed', $actor, $product, ['image_id' => $image->id]);
         });
+
+        // The row is gone for good; only now remove the file. If the store is down, an unused file is left behind, which
+        // costs nothing, whereas a row pointing at a missing file would show a broken picture.
+        $this->forget($image->path);
+    }
+
+    /** Removes a stored file, and never fails the request over it: the worst case is an unused file. */
+    private function forget(string $path): void
+    {
+        try {
+            ProductImage::disk()->delete($path);
+        } catch (Throwable $e) {
+            report($e);
+        }
     }
 
     private function toWebp(UploadedFile $file): string

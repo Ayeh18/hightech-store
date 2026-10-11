@@ -8,9 +8,12 @@ throwaway PostgreSQL database with the same settings you will give Render. It mi
 the demo shop, started nginx, PHP, the queue worker and the scheduler (about 125 MB of memory, well inside Render's free
 512 MB), let a customer register, check out and pay on FakePay, delivered the payment notice through its own queue, and ended
 with the order PAID and the reconciliation page MATCHED. Restarting it changed nothing, and with `APP_ENV=production` the
-payment simulator switched itself off. Netlify's own parser reads `netlify.toml` as intended. **What could not be tested from
-here** is the dashboards of Neon, Render and Netlify themselves (they are not under our control), so a button may be labelled
-slightly differently when you get there, and the forwarding from Netlify to Render has not run for real until you deploy.
+payment simulator switched itself off. Netlify's own parser reads `netlify.toml` as intended. Cloud photo storage (part 12) was
+tested the same way against a local S3-compatible server: a photo uploaded in the admin was served from the bucket, survived
+the container being thrown away and recreated, and was removed from the bucket when deleted. **What could not be tested from
+here** is the dashboards of Neon, Render, Netlify and Cloudflare themselves (they are not under our control), so a button may
+be labelled slightly differently when you get there; the forwarding from Netlify to Render, and the photo storage with a real
+Cloudflare/Supabase/Backblaze account, have not run for real until you deploy.
 
 ## 1. The big picture
 
@@ -52,8 +55,8 @@ Sources: [Netlify's free plan](https://netli.fyi/blog/netlify-free-plan-limits-2
 
 1. **The first visit after a quiet period is slow** (the API wakes up, about a minute). Netlify gives up on a forwarded request
    after about 26 seconds, so the very first request may show an error. Refresh and it works. Part 8 shows how to avoid it.
-2. **Photos you upload in the admin are lost** when the free Render service restarts: its disk is temporary. Until photos move to
-   cloud storage (a small planned change), do not rely on uploaded photos.
+2. **Photos you upload in the admin are lost** when the free Render service restarts, because its disk is temporary, *unless*
+   you keep them in free cloud storage. That is part 12; it takes about ten minutes and can be done later.
 3. **This is a demo shop with the payment *simulator*.** It runs with `APP_ENV=staging` on purpose: the simulator refuses to run
    in `production`, so that nobody can fake a payment on a real shop. Never put real payment keys on this deployment.
 4. **Emails** are written to the log (`MAIL_MAILER=log`) unless you connect a mail service (part 9).
@@ -128,6 +131,8 @@ Open **Environment Variables** and add these. Lines marked *later* are set after
 | `ADMIN_EMAIL` | the email you will sign in to the admin with |
 | `ADMIN_PASSWORD` | a **long** password (at least 12 characters) that you have not used anywhere else |
 | `SEED_DEMO_CATALOG` | `true` (adds the demo products the first time, only into an empty shop) |
+
+To keep uploaded photos (optional, and you can add it later), there are eight more variables in part 12.
 
 Click **Create Web Service**. Render builds the image (the first build takes several minutes) and starts it. Open the **Logs**
 tab and watch for:
@@ -206,8 +211,96 @@ API starts (it only ever **adds**; it never wipes your data). Check the Render l
 | Deploy fails with `STARTUP STOPPED` | A required setting is missing | Read the sentence after it |
 | Deploy fails while talking to the database | Wrong `DB_URL`, or you copied the pooled connection | Copy the **direct** connection string again |
 | Everything is slow after a quiet period | Neon or Render was asleep | Normal on free plans; part 8 helps with Render |
+| Product photos disappear after a while | They are on Render's temporary disk | Part 12 |
+| Deploy fails with `IMAGE_DISK is "s3" but these settings are missing` | A storage variable is empty | Add the ones it names |
+| The log says `Photo storage (s3) could not be written to` | Wrong key, secret, bucket name or endpoint | Compare each with the storage site. The shop still runs; only photo uploads fail |
+| Upload works but the picture is broken | `AWS_URL` is not the bucket's **public** address, or the bucket is not public | Open one photo's address in a browser; fix `AWS_URL` or turn public access on |
 
-## 12. Other free routes
+## 12. Photos that survive restarts (free cloud storage)
+
+Render's free disk is wiped on every restart and redeploy, so photos uploaded in the admin vanish. The fix is to keep them
+in a **bucket**: a folder on a storage company's servers. The shop saves each photo there and shows it to customers straight
+from the bucket's own address, which is also faster than sending it through Netlify and Render. The database keeps only each
+photo's path, so nothing else changes.
+
+The shop speaks the "S3" language that nearly every storage company understands, so you choose the company with settings alone:
+
+| Service | Free plan (checked October 2026) | The catch |
+|---|---|---|
+| **Cloudflare R2** (recommended) | 10 GB, and downloads are never charged | You must add a card or PayPal to switch R2 on. You pay nothing inside the free amounts, but it is not capped: going over is billed |
+| **Supabase Storage** | 1 GB, 5 GB of downloads a month; its pricing page mentions no card for the free plan | A free project is **paused after a week without activity**; expect its photos to stop loading until you unpause it |
+| **Backblaze B2** | 10 GB, no card to sign up | A *public* bucket (which photos need) requires a card for verification |
+
+For scale: the shop re-saves every photo as WebP, at most 1600 pixels wide. The eight photos in the development shop came out
+at 5 to 31 KB each; a large, detailed photo can reach a few hundred KB. Either way 1 GB holds thousands of photos.
+
+Sources: [R2 pricing](https://developers.cloudflare.com/r2/pricing/), [card needed for R2](https://community.cloudflare.com/t/why-using-r2-free-tier-involves-giving-card-info/945179), [Supabase pricing](https://supabase.com/pricing), [Backblaze B2 pricing](https://www.backblaze.com/cloud-storage/pricing).
+
+### With Cloudflare R2
+
+1. Create a free account at cloudflare.com. In the dashboard open **R2 Object Storage** and switch it on (this is where it asks
+   for the card).
+2. **Create bucket.** Name it, for example `hightech-photos`. Leave the location on automatic.
+3. Make it readable by everyone: open the bucket → **Settings** → **Public Development URL** → **Enable** (type `allow` to
+   confirm). You get an address like `https://pub-1a2b3c4d.r2.dev`. That is your `AWS_URL`.
+4. Make a key for the shop: back on the R2 page, **API Tokens → Manage → Create API token**. Choose **Object Read & Write**,
+   limit it to your bucket, and create it. Copy the **Access Key ID** and the **Secret Access Key** now (the secret is shown
+   only once), and the endpoint, which looks like `https://YOUR-ACCOUNT-ID.r2.cloudflarestorage.com`.
+5. In Render → **Environment**, add:
+
+| Variable | Value |
+|---|---|
+| `IMAGE_DISK` | `s3` |
+| `AWS_ACCESS_KEY_ID` | the Access Key ID |
+| `AWS_SECRET_ACCESS_KEY` | the Secret Access Key |
+| `AWS_DEFAULT_REGION` | `auto` |
+| `AWS_BUCKET` | `hightech-photos` (your bucket's name) |
+| `AWS_ENDPOINT` | `https://YOUR-ACCOUNT-ID.r2.cloudflarestorage.com` |
+| `AWS_USE_PATH_STYLE_ENDPOINT` | `true` |
+| `AWS_URL` | `https://pub-1a2b3c4d.r2.dev` (the public address from step 3, no slash at the end) |
+
+6. Save. Render restarts the API, and the log should say
+   `Photo storage (s3) works: a test file was written and removed.` Then upload a photo in the admin (**Products → a product**)
+   and check that it is still there after you restart the service from Render's **Manual Deploy** menu.
+
+The `r2.dev` address is meant for demos: Cloudflare limits how fast it can be used and does not cache it at its edge. For a
+real shop, connect a domain you own under the bucket's **Custom Domains** and put that in `AWS_URL` instead.
+
+### With Supabase or Backblaze instead
+
+Same eight variables, different values:
+
+| Variable | Supabase Storage | Backblaze B2 |
+|---|---|---|
+| `AWS_ENDPOINT` | `https://YOUR-PROJECT-REF.storage.supabase.co/storage/v1/s3` | `https://s3.YOUR-REGION.backblazeb2.com` |
+| `AWS_DEFAULT_REGION` | the project's region, shown on the same settings page | the region in the endpoint, e.g. `us-west-004` |
+| `AWS_USE_PATH_STYLE_ENDPOINT` | `true` (required) | `true` |
+| `AWS_URL` | `https://YOUR-PROJECT-REF.supabase.co/storage/v1/object/public/YOUR-BUCKET` | `https://s3.YOUR-REGION.backblazeb2.com/YOUR-BUCKET` |
+| Keys | **Storage → Settings → S3**: turn S3 access on and create a key | **Application Keys → Add a New Application Key** |
+
+In both, create the bucket as **public**.
+
+### Moving photos you already have
+
+Photos already uploaded on a computer (for example your own development shop) can be copied into the bucket, keeping their
+paths, with one command. It only copies, never deletes, and can be run again safely:
+
+```bash
+docker compose exec app php artisan shop:copy-images public s3
+```
+
+It needs the `AWS_...` variables in that computer's `backend/.env`. When it reports that every photo is on `s3`, set
+`IMAGE_DISK=s3`.
+
+### Good to know
+
+- **Keep the secret key secret.** It lets its holder write to your bucket. It belongs only in Render's environment (and a
+  local `.env`, which git ignores), never in the code or in `netlify.toml`.
+- If the storage company is down, the shop keeps working: only uploading a new photo fails, with a message asking you to try
+  again, and nothing half-saved is left behind.
+- The demo products come without photos, so there is nothing to lose until you upload your own.
+
+## 13. Other free routes
 
 - **Cloudflare Pages** can host the website instead of Netlify, with no bandwidth cap on its free plan. The forwarding of `/api`
   works differently there (a small function), so the guide above is the straightforward one.

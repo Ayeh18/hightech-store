@@ -354,9 +354,15 @@ and with the order. Each disagreement is listed in words. A payment that agrees 
 ### Adding a product (and its photos)
 
 **Products -> New product.** Choose the category first: the specification boxes below it come from that category's definitions.
-Save, then add photos (JPG/PNG/WebP, up to 8, re-saved as safe WebP) and check the stock on the same page. Photos are
-stored on the server's own disk for now (`storage/app/public`); moving them to cloud storage with a CDN is a small change
-planned for later (the database holds only each photo's path).
+Save, then add photos (JPG/PNG/WebP, up to 8, re-saved as safe WebP) and check the stock on the same page.
+
+**Where photos are kept** is one setting, `IMAGE_DISK`. `public` (the default) is the server's own disk
+(`storage/app/public`), which suits development. `s3` is any S3-compatible store (Cloudflare R2, Backblaze B2, Supabase
+Storage, AWS S3) configured with the usual `AWS_*` variables; customers then load photos straight from the bucket's public
+address (`AWS_URL`), with a one-year cache header since a photo's random name is never reused. The database holds only each
+photo's path, so moving is a copy: `php artisan shop:copy-images public s3` (it never deletes, and can be re-run). A failed
+upload returns 503 and records nothing; a photo's file is removed only after its row is gone. `shop:install` checks the
+store at start-up (missing settings stop the deploy; an unreachable store only warns).
 
 ### Notifications
 
@@ -382,6 +388,7 @@ the database on **Neon**. Netlify forwards `/api`, `/sanctum` and `/storage` to 
 one address and the cookie login keeps working. On first start the container migrates the database and runs
 `php artisan shop:install`, which creates the roles, the compatibility rules and the first admin from `ADMIN_EMAIL` /
 `ADMIN_PASSWORD` (and, only into an empty shop and only if `SEED_DEMO_CATALOG=true`, the demo catalog). It is safe to run again.
+A free host's disk does not survive a restart, so the guide's part 12 moves product photos to a free bucket (`IMAGE_DISK=s3`).
 
 ## Tests and quality checks
 
