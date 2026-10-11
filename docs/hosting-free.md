@@ -275,6 +275,26 @@ git add -A && git commit -m "Describe the change" && git push
 Netlify and Render both notice the push and redeploy by themselves. New database tables or columns are added automatically when the
 API starts (it only ever **adds**; it never wipes your data). Check the Render log if the new version does not start.
 
+The API's own reference is at `https://YOUR-API.onrender.com/docs/api` on this demo deployment (it is hidden when
+`APP_ENV=production`).
+
+### Deploy only what passed the checks (optional)
+
+By default both hosts deploy every push, including one whose tests fail. The repository's checks
+(`.github/workflows/ci.yml`: tests, code style, static analysis, and a trial start of the production container) run on
+GitHub on every push. To let only checked code reach the hosts:
+
+1. **Render**: in the service's **Settings**, set **Auto-Deploy** to **Off**. On the same page copy the **Deploy Hook**
+   address.
+2. **Netlify**: in **Project configuration → Build & deploy → Continuous deployment**, under **Build hooks**, add a
+   build hook and copy its address. Then stop automatic builds for pushes (**Build settings → Stop builds**, or lock
+   automatic publishing).
+3. **GitHub**: in the repository, **Settings → Secrets and variables → Actions → New repository secret**. Add
+   `RENDER_DEPLOY_HOOK_URL` and `NETLIFY_BUILD_HOOK_URL` with those two addresses.
+
+From then on a push to `main` is deployed by the last job of the workflow, and only if every check before it passed.
+A hook address lets anyone who has it start a deploy, so keep the two only as secrets.
+
 ## 11. When something goes wrong
 
 | What you see | Likely reason | What to do |

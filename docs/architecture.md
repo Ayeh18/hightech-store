@@ -69,40 +69,10 @@ transaction and returns the order that `OrderResource` turns into JSON.
 
 ## Database design
 
-The main tables and how they relate (framework tables such as `sessions`, `jobs` and `cache` are left out):
-
-```mermaid
-erDiagram
-    users ||--o{ addresses : "has"
-    users }o--o{ roles : "role_user"
-    roles }o--o{ permissions : "permission_role"
-    users ||--o| carts : "owns"
-    users ||--o{ pc_builds : "saves"
-    users ||--o{ orders : "places"
-
-    categories ||--o{ products : "contains"
-    brands ||--o{ products : "makes"
-    categories ||--o{ spec_definitions : "defines"
-    products ||--o{ product_specifications : "has values"
-    products ||--o{ product_images : "has"
-    products ||--|| inventories : "stock"
-    products ||--o{ inventory_movements : "stock history"
-
-    pc_builds ||--o{ pc_build_items : "contains"
-    products ||--o{ pc_build_items : "as a part"
-
-    carts ||--o{ cart_items : "contains"
-    cart_items ||--o{ cart_item_components : "PC snapshot"
-
-    orders ||--o{ order_items : "contains"
-    orders ||--o{ order_status_histories : "timeline"
-    orders ||--o| shipments : "ships as"
-    orders ||--o{ payments : "paid by"
-    payments ||--o{ payment_transactions : "diary"
-    payments ||--o{ refunds : "refunded by"
-    coupons ||--o{ coupon_usages : "redeemed as"
-    orders ||--o| coupon_usages : "uses"
-```
+The diagram of the main tables and how they relate is in the [README](../README.md#database-design). In words: a
+customer has addresses, one cart, saved builds and orders; a product belongs to a category and a brand, has
+specification values, photos, one stock row and a stock history; an order has lines, a timeline, at most one shipment,
+and payments, each of which has a diary and refunds.
 
 `webhook_events`, `audit_logs` and `compatibility_rules` stand apart: a webhook event is identified by the payment
 company's own event id, an audit entry points at whatever it describes, and a compatibility rule's row holds only its
@@ -127,7 +97,8 @@ Application code can have bugs, so the rules that must never break are also writ
 | A payment's history cannot be rewritten | a trigger refuses `UPDATE` and `DELETE` on `payment_transactions` |
 | A record others depend on cannot vanish | foreign keys that restrict deletion: a product that is on an order, an order that has payments, a customer who has orders |
 
-Search uses trigram indexes on product name and SKU (`pg_trgm`), so "ryzn" still finds "Ryzen".
+Search matches any part of a product's name or SKU (`ILIKE '%text%'`); trigram indexes (`pg_trgm`) are what keep that
+fast, since an ordinary index cannot help a search that starts with a wildcard. It does not forgive typos.
 
 ## Security
 

@@ -1,44 +1,224 @@
-# PC Custom Store
+# HighTech Store
 
-A PC-hardware e-commerce platform with a compatibility-checked **PC Builder**, built with Laravel 13 (REST API),
-Vue 3 and PostgreSQL. Portfolio project, built phase by phase.
+An online shop for PC hardware with a **PC builder that checks whether the parts fit together**, a full checkout,
+payments confirmed by signed webhooks, refunds, and an admin area. Laravel 13 API, Vue 3 front end, PostgreSQL.
 
-> **Status:** Phases 1-9 complete: Docker environment, authentication and RBAC, audit logging, the product catalog,
-> the PC builder with saved builds, the compatibility engine, the shopping cart, checkout (addresses, coupons,
-> shipping, orders with stock reservation), and payments (a gateway-agnostic payment layer with signed, idempotent
-> webhooks, plus a local fake gateway), order management (fulfilment, shipments, refunds), and the admin area (dashboard, reports, payment
-> reconciliation, products and stock, coupons, users, audit log). Quality work, API docs and CI come next.
+![The PC builder: seven parts chosen, all compatible, with the estimated power draw and a server-confirmed total](docs/screenshots/builder.png)
 
-## Stack
+It is a portfolio project, built to show the parts of an online shop that are easy to get subtly wrong: money, stock,
+payments and permissions. A few things worth looking at first:
+
+- **Nothing the browser sends is trusted for money.** Prices, totals, discounts and shipping are worked out by the server
+  from its own data, in whole sen, and the database refuses an order whose total does not add up.
+- **The last unit cannot be sold twice.** Stock is reserved under row locks, and a test proves it by racing eight real
+  checkout processes for three units.
+- **A payment is believed only from a signed webhook, and only once.** Duplicates, forgeries, replays, late payments and
+  wrong amounts each have a defined, tested outcome.
+- **Compatibility is a rule engine, not a pile of `if`s.** Sixteen small rules that an admin can switch off or tune
+  without a deployment.
+- **The API reference is generated from the code and then tested against real answers**, so it cannot be out of date
+  and cannot be wrong without a test failing.
+
+| | |
+|---|---|
+| ![Catalog with filters generated from each category's specifications](docs/screenshots/catalog.png) | ![Payment reconciliation: the shop's records against the payment company's](docs/screenshots/admin-reconciliation.png) |
+| The catalog. Every filter comes from the database | Reconciliation, catching a payment that disagrees |
+| ![Home page](docs/screenshots/home.png) | ![The generated API reference](docs/screenshots/api-reference.png) |
+| Home | The API reference |
+
+## Contents
+
+- [Features](#features) · [Technology](#technology) · [Architecture](#architecture) · [Database design](#database-design)
+- [Getting started](#getting-started) · [API documentation](#api-documentation) · [Tests and quality checks](#tests-and-quality-checks)
+- [Payment architecture](#payment-architecture) · [Webhook architecture](#webhook-architecture) · [PC compatibility architecture](#pc-compatibility-architecture)
+- [Security](#security) · [Deployment](#deployment) · [Project layout](#project-layout) · [Future improvements](#future-improvements)
+
+## Features
+
+**Shop**
+- Catalog of about 170 seeded products in 14 categories, with search across name, SKU, brand and category, and
+  filters, sorting and product specifications that are all generated from data
+  ([details](docs/catalog-and-pc-builder.md)).
+- Cart holding single products and whole PCs, re-priced and re-checked against stock every time it is read.
+- Checkout with an address book, coupons (percentage or fixed, with limits), and shipping by region.
+- Orders with a timeline, cancellation while unpaid, and refund requests after payment.
+- Emails for each step (placed, paid, shipped, delivered, payment failed, refund decided).
+
+**PC builder**
+- Pick a part for each slot; the list for the next slot shows what fits first and hides what does not.
+- Live verdict (compatible, warnings, incompatible) with the reason for each problem, estimated power draw and a
+  recommended power supply.
+- Save, rename, copy and buy builds. A saved build stores which parts, never prices, so it is never stale.
+
+**Payments**
+- A payment layer that talks to an interface, with a built-in simulator ("FakePay") that behaves like a real gateway:
+  its own payment page, signed webhooks delivered by a queue, retries and refunds.
+- Refunds (customer requests, staff decisions, partial amounts, retries) that cannot pay out twice.
+- Reconciliation of the shop's records against the payment company's, with every disagreement explained.
+
+**Admin**
+- Dashboard and sales reports with CSV export, in the shop's own time zone.
+- Orders and fulfilment, refunds, payments with their full history, products and stock, brands, categories and their
+  specifications, compatibility rules, coupons, users and roles, and a read-only audit log.
+- Two staff levels by permission: staff run the shop day to day; only admins move money or manage people.
+
+## Technology
 
 | Layer | Technology |
 |---|---|
-| API | Laravel 13, PHP 8.5, Sanctum (SPA cookie auth), Pest, Pint |
-| Frontend | Vue 3 (Composition API), Pinia, Vue Router, Axios, Tailwind CSS 4, Vite, Vitest |
+| API | Laravel 13, PHP 8.5, Sanctum (cookie login for the single-page app) |
+| Front end | Vue 3 (Composition API, `<script setup>`), Pinia, Vue Router, Axios, Tailwind CSS 4, Vite |
 | Database | PostgreSQL 17 |
-| Dev environment | Docker Compose (app, queue worker, scheduler, db, frontend, Mailpit) |
+| Tests and checks | Pest, PHPStan (level 5, Larastan), Pint · Vitest, Vue Test Utils, ESLint, Prettier |
+| API reference | OpenAPI 3.1, generated by Scramble |
+| Development | Docker Compose: API, queue worker, scheduler, database, front end, Mailpit |
+| Delivery | GitHub Actions; a single production container (nginx, PHP-FPM, queue worker, scheduler) |
 
-## Quick start
+## Architecture
 
-Requirements: Docker with Compose, and `npm` (only needed to install frontend packages).
+```mermaid
+flowchart LR
+    B["Browser<br/>Vue 3 app"] -->|"/api, same address<br/>session cookie + CSRF"| C
 
-```bash
-./scripts/setup.sh                      # creates .env files with a random DB password, builds the image
-(cd frontend && npm install)            # frontend dependencies
-docker compose up -d                    # start everything
-docker compose exec app php artisan migrate --seed
+    subgraph API["Laravel API"]
+        C["Controllers<br/>validate, authorize"] --> S["Services<br/>the business rules"]
+        S --> M["Models"]
+        S --> G["PaymentGateway<br/>interface"]
+    end
+
+    M --> DB[("PostgreSQL")]
+    S --> ST[("Photos<br/>disk or S3")]
+    G --> P["Payment company<br/>FakePay today"]
+    P -->|"signed webhook"| C
+    S -->|"jobs"| Q["Queue worker<br/>emails, webhook delivery"]
+    T["Scheduler"] -->|"expire unpaid orders<br/>reconcile payments"| S
 ```
 
-| Service | URL |
+Two applications in one repository. `backend/` is an API with no pages of its own; `frontend/` is the Vue app. The
+browser always reaches both through one address (the Vite server forwards `/api` in development, the web host does in
+production), which is what allows the login to be an `httpOnly` cookie instead of a token that scripts could read.
+
+Inside the API, controllers stay thin. They hand validated input to a **service**, and services are the only place
+that changes money, stock or status, always inside a database transaction.
+
+Some of the decisions, with the reasoning in [docs/architecture.md](docs/architecture.md):
+
+| Decision | Why |
 |---|---|
-| Web app (Vue) | http://localhost:5173 |
-| API (Laravel) | http://localhost:8000 (the web app proxies `/api` to it) |
-| Mailpit (dev inbox) | http://localhost:8025 |
-| PostgreSQL | `127.0.0.1:5434` (credentials in `.env`) |
+| Money is a whole number of sen in a `Money` value object | Decimals drift; whole numbers can be checked exactly by the database |
+| The server decides every amount | Anything a browser sends can be edited by its user |
+| Permissions are data, checked on the route | Who may do what changes more often than code |
+| Product specifications are data, not columns | Filters, forms and validation are generated; a new kind of part needs no code |
+| An order has two statuses (the goods, the money), each with a list of allowed moves | "Paid but not shipped" and "shipped but refunded" are both real |
+| Stock is reserved by the order, under row locks taken in a fixed order | Stops overselling without deadlocks |
+| Only a signed webhook marks an order paid, recorded in the same transaction as its effects | The return page proves nothing; a retry must be harmless |
+| Tests run on PostgreSQL | The rules that matter (locks, `CHECK`s, partial indexes, a trigger) only exist there |
 
-### Demo accounts (local development only)
+## Database design
 
-Created by `DemoUserSeeder`, which never runs outside the `local`/`testing` environments.
+```mermaid
+erDiagram
+    users ||--o{ addresses : "has"
+    users }o--o{ roles : "role_user"
+    roles }o--o{ permissions : "permission_role"
+    users ||--o| carts : "owns"
+    users ||--o{ pc_builds : "saves"
+    users ||--o{ orders : "places"
+
+    categories ||--o{ products : "contains"
+    brands ||--o{ products : "makes"
+    categories ||--o{ spec_definitions : "defines"
+    products ||--o{ product_specifications : "has values"
+    products ||--o{ product_images : "has"
+    products ||--|| inventories : "stock"
+    products ||--o{ inventory_movements : "stock history"
+
+    pc_builds ||--o{ pc_build_items : "contains"
+    products ||--o{ pc_build_items : "as a part"
+
+    carts ||--o{ cart_items : "contains"
+    cart_items ||--o{ cart_item_components : "PC snapshot"
+
+    orders ||--o{ order_items : "contains"
+    orders ||--o{ order_status_histories : "timeline"
+    orders ||--o| shipments : "ships as"
+    orders ||--o{ payments : "paid by"
+    payments ||--o{ payment_transactions : "diary"
+    payments ||--o{ refunds : "refunded by"
+    coupons ||--o{ coupon_usages : "redeemed as"
+    orders ||--o| coupon_usages : "uses"
+```
+
+Framework tables are left out, as are `webhook_events`, `audit_logs` and `compatibility_rules`, which stand apart.
+
+The rules that must never break are written into the database as well as the code: an order's total must add up
+(`CHECK`), reserved stock cannot exceed stock, refunds cannot exceed the payment, only one payment page and one refund
+request may be open per order (partial unique indexes), the same webhook or checkout is recorded once (unique keys), and
+a payment's history cannot be edited (a trigger). The full list is in
+[docs/architecture.md](docs/architecture.md#what-the-database-itself-refuses).
+
+## Getting started
+
+### Installation
+
+The only requirement is **Docker** with Compose. PHP, Composer, Node and PostgreSQL all run in containers.
+
+```bash
+git clone <this repository> hightech-store && cd hightech-store
+./scripts/setup.sh                                   # .env files, images, PHP and JavaScript packages
+docker compose up -d                                 # start everything
+docker compose exec app php artisan migrate --seed   # tables, roles, demo accounts, demo catalog
+```
+
+Then open:
+
+| | Address |
+|---|---|
+| The shop | http://localhost:5173 |
+| The API reference | http://localhost:8000/docs/api |
+| Mailpit (every email the shop sends) | http://localhost:8025 |
+| PostgreSQL | `127.0.0.1:5434`, credentials in `.env` |
+
+### Environment setup
+
+`scripts/setup.sh` creates two files from their `.example` templates, with a random database password in both, and
+refuses to overwrite existing ones. Neither is committed.
+
+| File | For | Notable settings |
+|---|---|---|
+| `.env` | Docker Compose | Ports (`APP_PORT`, `FRONTEND_PORT`, `DB_FORWARD_PORT`, `MAILPIT_PORT`), database name, user and password |
+| `backend/.env` | Laravel | `APP_URL`, `FRONTEND_URL`, `DB_*`, `SANCTUM_STATEFUL_DOMAINS`, `PAYMENT_PROVIDER`, `PAYMENT_WEBHOOK_SECRET`, `SHOP_TIMEZONE`, `IMAGE_DISK`, mail |
+
+If a port is already taken on your computer, change it in `.env` and run `docker compose up -d` again.
+
+### Docker setup
+
+| Service | What it runs |
+|---|---|
+| `app` | The Laravel API |
+| `queue` | The queue worker: emails, and FakePay's webhook deliveries |
+| `scheduler` | Timed jobs: cancelling unpaid orders after 30 minutes, checking undecided payments with the gateway |
+| `db` | PostgreSQL 17, with a second database for the tests |
+| `frontend` | The Vite development server |
+| `mailpit` | Catches every email so none leaves your computer |
+
+`docker compose logs -f app` follows the API's log; `docker compose down` stops everything and keeps the data.
+
+### Database migration
+
+```bash
+docker compose exec app php artisan migrate          # apply new migrations
+docker compose exec app php artisan migrate:status   # what has been applied
+```
+
+Migrations only ever add; none of them needs data to be thrown away.
+
+### Seed instructions
+
+`php artisan migrate --seed` (or `php artisan db:seed`) creates:
+
+- the roles and permissions, and the compatibility rules' default settings (safe to re-run anywhere);
+- **in local development only**: three demo accounts, the demo catalog and two coupons (`WELCOME10`, `SAVE50`).
 
 | Role | Email | Password |
 |---|---|---|
@@ -46,370 +226,190 @@ Created by `DemoUserSeeder`, which never runs outside the `local`/`testing` envi
 | Staff | staff@example.com | Password123 |
 | Customer | customer@example.com | Password123 |
 
-## Catalog API (Phase 2)
-
-Amounts are always **integer sen** (`RM 4,602.00` = `460200`). Reads are public; writes need the permission shown.
-
-| Endpoint | Auth | Notes |
-|---|---|---|
-| `GET /api/products` | public | `q`, `category`, `brands[]`, `price_min`, `price_max` (sen), `in_stock`, `specs[key][]`, `specs[key][min]`, `sort` (`relevance\|popular\|newest\|price_asc\|price_desc`; `relevance` is the default while `q` is set), `per_page` (max 48), `page` |
-| `GET /api/products/{id\|slug}` | public | Full product with specifications. Drafts return 404 for customers |
-| `GET /api/categories` · `GET /api/brands` | public | With published product counts |
-| `GET /api/categories/{slug}/filters` | public | Brands, price range and spec filter options with counts, built from the database |
-| `GET /api/admin/products` | `products.manage` | Includes drafts and archived; `status` filter |
-| `POST/PUT/DELETE /api/products[/{id}]` | `products.manage` | Specs are validated against the category's definitions; price changes are audit-logged |
-| `POST/DELETE /api/products/{id}/images[/{image}]` | `products.manage` | JPG/PNG/WebP, max 3 MB, re-encoded to WebP, max 8 per product |
-| `POST /api/products/{id}/inventory/adjustments` | `inventory.manage` | Locks the row, never below zero or reserved, writes a movement and an audit entry |
-| `POST/PUT/DELETE /api/categories` · `/api/brands` | `categories.manage` / `brands.manage` | Cannot delete while products exist |
-| `POST /api/categories/{slug}/specs` · `PUT/DELETE /api/spec-definitions/{id}` | `categories.manage` | Add specs to a category with no code change |
-
-## PC builder API (Phase 3)
-
-| Endpoint | Auth | Notes |
-|---|---|---|
-| `GET /api/pc-builder/components` | public | The slots (CPU, motherboard, ...) in screen order, whether each is required, its max quantity and the category that supplies it |
-| `POST /api/pc-builder/validate` | public (throttled) | Body `{items: [{slot, product_id, quantity}]}`. Returns the build **recalculated from database prices and stock**: line totals, subtotal (sen), missing required slots and issues (`out_of_stock`, `insufficient_stock`, `product_unavailable`). Client prices are ignored. Products that are not on sale are never revealed |
-| `GET/POST /api/builds` | customer | List (with totals) / save a build. Incomplete builds can be saved. Max 25 per customer |
-| `GET/PUT/DELETE /api/builds/{id}` | owner only | Anyone else gets `404`. `PUT` can rename and/or replace the parts |
-| `POST /api/builds/{id}/duplicate` | owner only | Creates "Copy of ..." |
-
-A build stores only *which* products and how many. Prices are always read live, so a saved build never shows a stale price.
-
-## Compatibility engine (Phase 4)
-
-A build is checked by small **rule classes** in `backend/app/Services/Compatibility/Rules/`, one per check, listed in
-`config/compatibility.php`. `CompatibilityService` runs the enabled rules and returns a report: `compatible`, `warning`
-(only warnings) or `incompatible` (at least one error). **Errors block buying a build; warnings never do.**
-
-| Rule | Default | Checks |
-|---|---|---|
-| `cpu_socket_matches_motherboard` | error | AM5 CPU needs an AM5 board |
-| `ram_type_matches_motherboard` | error | DDR4 vs DDR5 |
-| `ram_modules_fit_motherboard` / `ram_capacity_within_motherboard_limit` | error | sticks <= slots, total GB <= board maximum |
-| `motherboard_fits_case` | error | ATX / Micro ATX / Mini ITX support |
-| `gpu_fits_case` | error | card length <= case maximum |
-| `cooler_fits_case` | error | air cooler height <= case maximum (liquid coolers skipped) |
-| `cooler_supports_cpu_socket` | error | mounting kit supports the CPU socket |
-| `cooler_cools_cpu` | warning | cooler rating >= CPU TDP |
-| `psu_covers_estimated_load` | error | PSU >= CPU + GPU + 80 W |
-| `psu_has_headroom` | warning | PSU >= estimate + 30%, rounded up to 50 W (e.g. 420 W -> 550 W) |
-| `psu_meets_gpu_recommendation` | warning | PSU >= the GPU maker's recommendation |
-| `psu_fits_case` | error | ATX PSU in an SFX-only case |
-| `storage_fits_m2_slots` | error | M.2 drives <= board M.2 slots |
-| `cpu_needs_graphics_card` / `cpu_cooler_required` | warning | CPU without iGPU / without a bundled cooler, and the slot is empty |
-
-- **Rules are data-tolerant:** a rule that is missing a part or a spec stays silent instead of guessing. A contract test
-  fails if a rule reads a spec key that the catalog does not define, so renaming a spec cannot quietly disable a rule.
-- **Adding a rule:** write a class (extend `AbstractRule`), add it to `config/compatibility.php`, run
-  `php artisan db:seed --class=CompatibilityRuleSeeder`. Rules are plain PHP objects and need no database to unit-test.
-- **Admin control without a deployment:** the `compatibility_rules` table stores, per rule, on/off, severity and tunable
-  numbers (`base_system_watts`, `headroom_percent`). Missing rows fall back to the defaults, so a forgotten seed never disables checks.
-
-| Endpoint | Auth | Notes |
-|---|---|---|
-| `POST /api/pc-builder/validate` | public | Now also returns `compatibility: {status, issues[{rule, severity, message, slots}], metrics{estimated_power_watts, recommended_psu_watts}}` and a `purchasable` flag that includes compatibility |
-| `GET /api/pc-builder/parts` | public | Smart filtering: `slot`, the usual product filters, and the build so far as `parts[cpu][id]=5&parts[ram][id]=12&parts[ram][qty]=2`. Parts come back **compatible, then warning, then incompatible**, each with its `compatibility` verdict. Incompatible parts are hidden unless `include_incompatible=1` |
-| `GET /api/compatibility-rules` | `compatibility.manage` (admin) | Every rule with its settings and defaults |
-| `PUT /api/compatibility-rules/{key}` | `compatibility.manage` | `is_enabled`, `severity`, `params`. Validated per rule, audit-logged |
-
-Smart filtering judges only the candidate: a problem that already exists between two other parts is not blamed on every
-candidate, and "missing part" rules (no iGPU, no cooler) are skipped because a single part cannot be blamed for a slot that is still empty.
-
-## Cart (Phase 5)
-
-One cart per customer (guests are sent to log in). A cart has two kinds of line:
-
-- **Product line**: one product and a quantity. Adding the same product again increases the quantity (a database
-  index guarantees one line per product, even under concurrent requests).
-- **Build line**: a whole PC. When it is added, the server stores a **snapshot** of its parts and their prices
-  (`cart_item_components`), so the line keeps meaning what it meant even if the saved build is edited or deleted.
-
-**The browser is never trusted for money, stock or compatibility.** `CartEvaluator` re-prices and re-validates the
-whole cart from the database on every read, and the cart responses always return the complete recalculated cart:
-
-| Check | Result |
-|---|---|
-| Price | Always the **current** price. The price stored at add time is only used to warn "the price went up from X to Y". A customer can accept the new prices; they never pay a stale one |
-| Stock | Counted across **all lines**, including parts inside builds, so one graphics card cannot be sold twice. Not reserved by the cart (reservation happens at checkout, under a row lock) |
-| Withdrawn / out-of-stock products | A red error on the line, excluded from the total, `checkout_ready = false` |
-| Builds | Must be **complete, in stock and free of compatibility errors** to be added, and are checked again every time the cart is read (specs or rule settings may have changed). Warnings never block |
-| Limits | 10 of one product, 5 copies of one PC, 30 lines |
-
-| Endpoint | Notes |
-|---|---|
-| `GET /api/cart` | The priced, validated cart: lines, `subtotal`, `item_count`, `checkout_ready`, `has_price_changes` |
-| `POST /api/cart/products` | `{product_id, quantity}` |
-| `POST /api/cart/builds` | Either `{build_id}` (a saved build; others' builds are a 404) or `{items: [{slot, product_id, quantity}], name}` (the parts in the builder). Refused with the reasons (`errors.build[]`) if incomplete, out of stock or incompatible |
-| `PUT /api/cart/items/{id}` | `{quantity}`, re-checked against stock |
-| `DELETE /api/cart/items/{id}` · `DELETE /api/cart` | Remove a line / clear |
-| `POST /api/cart/accept-prices` | Re-snapshot prices so the warnings stop |
-
-A cart line belongs to one customer: anyone else gets a `404`.
-
-## Checkout and orders (Phase 6)
-
-`CheckoutService` turns the cart into an order **inside one database transaction**: either the whole order exists, or
-nothing changed. The browser only chooses (a saved address, a coupon code, an optional note). There is deliberately no
-field for a price: everything is calculated by the server from the cart as it is at that moment.
-
-1. Lock the customer's cart row (a second click waits, then finds the first order).
-2. Re-evaluate the cart: current prices, stock across all lines, withdrawn products, PC compatibility.
-3. Validate the coupon again (locking the coupon row so its last redemption cannot be used twice).
-4. Calculate shipping from the delivery address (West Malaysia RM 15, Sabah/Sarawak/Labuan RM 35, free from RM 3,000 after discounts; see `config/shop.php`).
-5. **Reserve stock** (`inventories.reserved`) under `SELECT ... FOR UPDATE`, locking rows in product-id order so two checkouts cannot deadlock. Not enough of anything refuses the whole order. A `CHECK (reserved <= stock)` is the last line of defence.
-6. Write the order and one line per product, with the **name, SKU and price as they were**. The parts of a PC share a `build_group`.
-7. Empty the cart.
-
-| Rule | How it is enforced |
-|---|---|
-| Totals add up | Money is integer sen; a database `CHECK` refuses an order where `total != subtotal - discount + shipping` |
-| No double orders | `POST /api/checkout` accepts an `Idempotency-Key` header; the same key returns the same order (`200`, not `201`) |
-| No overselling | Row locks plus the `reserved <= stock` constraint; the cart does not hold stock, the order does |
-| Orders are private | Anyone but the owner gets a `404` |
-| Two lifecycles | `orders.status` (what is happening to the goods) and `orders.payment_status` (the money) are separate columns; `OrderStatus::nextStatuses()` lists the only allowed moves |
-| Unpaid orders do not hold stock forever | They expire after 30 minutes. The `scheduler` container runs `orders:expire-unpaid` every minute, which cancels them and gives the stock and the coupon back, exactly once |
-| Order numbers | `ORD-2026-00001`, one atomic counter per year (no repeats, no gaps) |
-
-| Endpoint | Notes |
-|---|---|
-| `GET/POST /api/addresses` · `PUT/DELETE /api/addresses/{id}` | Address book (max 10, exactly one default, Malaysian states and 5-digit postcodes) |
-| `POST /api/checkout/preview` | `{address_id?, coupon_code?}`: what the order would cost. Saves nothing |
-| `POST /api/checkout` | `{address_id, coupon_code?, notes?}` + `Idempotency-Key` header. Refusals list their reasons (`errors.cart[]`, `errors.coupon_code`) |
-| `GET /api/orders` · `GET /api/orders/{id}` | My orders; one order with its lines grouped (a PC is one line with its parts) |
-| `POST /api/orders/{id}/cancel` | Only while unpaid. Releases stock and the coupon |
-
-Demo coupons (local only): `WELCOME10` (10% off orders over RM 1,000, once per customer) and `SAVE50` (RM 50 off orders over RM 500).
-An order waits for payment (see the next section) and is cancelled automatically when its 30-minute window ends.
-
-## Payments (Phase 7)
-
-The shop only ever talks to a `PaymentGateway` **interface** (`createPayment`, `parseWebhook`, `fetchStatus`). Each
-payment company is one class that implements it, listed in `config/payments.php`; `PAYMENT_PROVIDER` picks which one is
-used. The included gateway is **`fake`**, a local simulator (see below). No real gateway is included: adding one means
-writing one class and one config line, and nothing else in the shop changes.
-
-**The journey**
-
-1. **Pay now** (`POST /api/orders/{id}/payments`, no body). The server creates a `payments` row for the order's **own
-   total** and asks the gateway for a payment page. The browser never sends an amount. Asking again while a page is
-   waiting returns the same one.
-2. The customer pays on the gateway's page and is sent back to `/orders/{id}?payment=return`.
-3. Meanwhile the gateway calls our **webhook** (`POST /api/webhooks/{provider}`). Only this can mark an order paid.
-   Coming back to the site proves nothing, so the order page shows "Confirming your payment…" and asks the server every
-   two seconds (for up to ~40 s) until the webhook has been processed.
-4. When it is processed: the payment and the order become `PAID`, the **reserved stock becomes sold stock** (`stock` and
-   `reserved` both go down, with a `sale` line in the stock history) and the customer gets an email.
-
-**What keeps it safe**
-
-| Risk | How it is handled |
-|---|---|
-| Someone forges a webhook | Every webhook carries `X-FakePay-Signature: t=<time>,v1=<HMAC-SHA256 of "time.body">` made with a shared secret (`PAYMENT_WEBHOOK_SECRET`). Wrong, missing or **older than 5 minutes** (replay) is refused with `401` before anything is read. Compared with `hash_equals` |
-| The same webhook arrives twice (gateways retry) | Each event is written to `webhook_events` (**unique `provider + event_id`**) in the *same transaction* as its effects. The second delivery finds the row and does nothing (`200 {"status":"duplicate"}`) |
-| Two events race, or arrive out of order | The order and then the payment are locked (always in that order, so no deadlock). Every move is checked against the payment's current state: a "failed" event after "paid" is ignored, a paid payment never goes back |
-| The gateway reports a different amount | Not accepted. The payment stays unpaid, an `AMOUNT_MISMATCH` line and an audit entry are written |
-| The processing crashes half way | The whole transaction rolls back, **including the "seen this event" row**, and the answer is `500`, so the gateway's retry is processed normally |
-| Customer pays *after* the order was cancelled or expired | The money is recorded as paid and flagged `requires_refund`; the order is **not** revived (its stock may be sold to someone else) and stock is untouched. The customer is told it will be refunded. Refunds themselves are Phase 8 |
-| Two payment pages for one order | A partial unique index allows only **one open payment per order** |
-| History being rewritten | `payment_transactions` is the payment's diary; a **database trigger** refuses any `UPDATE` or `DELETE` on it |
-| A webhook never arrives | `payments:reconcile` (every 5 minutes, run by the `scheduler`) asks the gateway about undecided payments, and recently closed ones, and feeds its answer through the same processor |
-| Rate limits | Each limited route has its own named counter (`throttle:20,1,checkout`). Without a name Laravel shares one counter per customer across **all** such routes |
-
-**The fake gateway ("FakePay")** plays the part of the payment company, locally and with no real money:
-
-- `createPayment` stores a pretend payment and returns a link to a payment page inside the Vue app (`/fake-gateway/{reference}`), styled differently from the shop on purpose.
-- The page offers **Pay successfully**, **Simulate a declined payment** and **Cancel and go back**.
-- The choice is recorded by the "company" (`/api/fake-gateway/...`), and then a queued job (`DeliverFakeWebhook`, run by the `queue` container) **POSTs a signed webhook to the shop**, with retries and the same event id each time. So the whole flow is real HTTP, a real signature check and a real queue.
-- It is refused (`404`) when `APP_ENV=production`, whatever the settings say.
-
-| Setting (`backend/.env`) | Meaning |
-|---|---|
-| `PAYMENT_PROVIDER` | Which gateway new payments use (`fake`) |
-| `PAYMENT_WEBHOOK_SECRET` | Shared secret for signing/checking webhooks. Any value for `fake`; a real gateway gives you one |
-| `PAYMENT_FAKE_WEBHOOK_URL` | Where the simulator delivers (inside Docker: `http://app:8000/api/webhooks/fake`) |
-
-Try it: place an order, press **Pay**, and choose an outcome. Emails appear in Mailpit (http://localhost:8025).
-
-| Endpoint | Notes |
-|---|---|
-| `POST /api/orders/{id}/payments` | Start (or resume) paying. `201` new, `200` the one already waiting, `422` with the reason otherwise |
-| `POST /api/webhooks/{provider}` | Called by the gateway. No login; the signature is the proof. Always `200` for anything that is not an error |
-| `GET/POST /api/fake-gateway/payments/{reference}[/complete]` | The simulator's payment page (development only) |
-
-## Order management and refunds (Phase 8)
-
-Who may do what is decided by permissions, not by hard-coded roles:
-
-| Permission | Who has it | What it allows |
-|---|---|---|
-| `orders.manage` | staff and admins | See every order, move it through fulfilment, add the shipment |
-| `refunds.manage` | **admins only** | Decide refunds, cancel a paid order, refund an amount. Moving money needs more trust than packing a box |
-| `payments.view` | admins only | See the payment company's own reference for a payment |
-
-**Getting an order to the customer.** Each step is strictly the next one: `PAID -> PROCESSING -> PACKED -> SHIPPED -> DELIVERED`.
-Skipping a step, going back, or touching an order that is unpaid, cancelled or has an open refund request is refused (`422`).
-Shipping records the carrier and tracking number and emails the customer. Every status change of any order, whoever or
-whatever caused it, is written to `order_status_histories` by an **observer**, so no code path can forget. That is the
-customer's timeline, and it lets a declined refund put the order back to *exactly* the status it had.
-
-**Refunds, from the customer's side.** On a paid order the customer can ask for their money back (`POST /api/orders/{id}/refund-request`, a
-reason is required). Nothing is paid out yet; the order shows "Refund requested" and fulfilment stops. An admin then approves
-or declines it. A delivered order can be refunded for 14 days after delivery (`config/shop.php`).
-
-| Endpoint | Permission | Notes |
-|---|---|---|
-| `GET /api/admin/orders` | `orders.manage` | Filters: `status`, `payment_status`, `q` (order number, email or name). 20 per page |
-| `GET /api/admin/orders/{id}` | `orders.manage` | Everything: customer, every payment, refunds, shipment, timeline |
-| `POST /api/admin/orders/{id}/status` | `orders.manage` | `{status: PROCESSING \| PACKED}` |
-| `POST /api/admin/orders/{id}/shipment` | `orders.manage` | `{carrier, tracking_number}`: PACKED -> SHIPPED |
-| `POST /api/admin/orders/{id}/shipment/delivered` | `orders.manage` | SHIPPED -> DELIVERED |
-| `GET /api/admin/refunds?status=REQUESTED` | `refunds.manage` | The queue of customer requests |
-| `POST /api/admin/refunds/{id}/approve` | `refunds.manage` | `{restock?, note?}` |
-| `POST /api/admin/refunds/{id}/reject` | `refunds.manage` | `{note}` (the customer is told why) |
-| `POST /api/admin/refunds/{id}/retry` | `refunds.manage` | For a refund the payment company did not complete |
-| `POST /api/admin/orders/{id}/cancel-and-refund` | `refunds.manage` | Paid and not yet shipped: refunds in full, cancels, puts the goods back |
-| `POST /api/admin/payments/{id}/refunds` | `refunds.manage` | `{amount (sen), reason: goodwill \| late_payment, note?}` |
-| `GET /api/admin/payments/needing-refund` | `refunds.manage` | Payments that arrived after their order was cancelled |
-
-Actions that call the payment company answer `200` with the refund even when the company refused: it then has the status
-`FAILED` and a `failure_reason`, and can be retried.
-
-**What keeps the money safe**
-
-| Risk | How it is handled |
-|---|---|
-| Refunding more than was paid | `payments.refunded_amount` is capped by a database `CHECK`, and the amount that can still be refunded **includes refunds that are still being sent**, so two at once cannot add up to more |
-| Refunding twice (a timeout, a double click, a retry) | The refund is `PROCESSING` before the gateway is called, only one approval can win (row locks), and the gateway receives the refund's id as an **idempotency key**: asking again returns the first refund. Tested with a gateway that refunds and then "loses" its answer |
-| A slow gateway freezing the shop | The gateway call is outside the database transaction; the result is written in a second one |
-| Half-finished changes | If the gateway says no, the order, payment and stock are untouched and the refund is `FAILED`. A retry finishes the job exactly once |
-| Stock going back twice, or when it should not | Goods return to the shelf only for a refund that covers the **whole order**, and only if it never shipped (or staff confirm the parcel came back). It is a `return` line in the product's stock history |
-| One request waiting per order | A partial unique index |
-| Who did it | Every approval, rejection, shipment and status change is in the audit log |
-
-Late payments are refunded from the same screen: a payment that arrived after its order was cancelled is flagged `requires_refund`
-(Phase 7) and appears in `payments/needing-refund`; refunding it in full clears the flag without reopening the order.
-
-The fake gateway implements refunds too (`fake_gateway_refunds`, with the idempotency key as a unique column). Real gateways
-can answer a refund with "pending" and confirm later by webhook; this phase handles the immediate answer only.
-
-## Admin area (Phase 9)
-
-Sign in as a demo admin (local development only, see the demo accounts above) and open **/admin**. The menu shows only
-what the signed-in person's permissions allow, and the API checks every request again, so hiding a link is a convenience,
-never the protection.
-
-| Page | Permission | What it is for |
-|---|---|---|
-| Dashboard | `reports.view` | Cards (sales, orders, pending payments, products, low stock, customers), sales and orders over time, top products, revenue by category, recent orders, low-stock products, recent and failed payments |
-| Sales reports | `reports.view` | Any period up to a year, day by day, what sold, by category, and a **CSV download** |
-| Orders / Refunds | `orders.manage` / `refunds.manage` | Pack, ship, deliver, cancel and refund; the refund queue (Phase 8) |
-| Payments | `payments.view` | Every payment attempt and its **diary** (every step, never edited) |
-| Reconciliation | `payments.view` | Our books against the payment company's (below) |
-| Products | `products.manage` | Create and edit with the category's own specification boxes, photos, stock |
-| Brands & categories | `brands.manage` / `categories.manage` | Including each category's specification definitions, which drive the shop's filters and the PC builder |
-| Compatibility rules | `compatibility.manage` | Switch a rule off, make it a warning, change its numbers |
-| Coupons | `coupons.manage` | Percentage or fixed, minimum order, cap, dates, limits |
-| Users | `users.manage` | Roles, and deactivating an account |
-| Audit log | `audit.view` | Who did what, filterable. Read-only |
-
-Staff (`orders.manage`, catalog, stock, reports) cannot see payments, refunds, users, coupons or the audit log.
-
-**What "sales" means.** *Net sales* = money received minus money refunded, each counted on the day it happened, in
-**Malaysian time** (`SHOP_TIMEZONE`, default `Asia/Kuala_Lumpur`): an order paid at 1 am on the 20th belongs to the 20th,
-even though it is still the 19th in UTC. A payment that arrived too late for its order is held for a refund and is not a sale.
-
-**Typing money and times.** Admins type ringgit (`1,599.00`) and percentages (`12.5`); the browser turns them into whole sen
-and basis points from the digits as text, never through floating-point, so `19.99` can never become `1998.9999`. Coupon
-dates are entered in Malaysian time and sent as exact moments.
-
-### Payment reconciliation
-
-*Do our books and the payment company's agree?* For every payment sent to a gateway in the chosen period (up to 31 days)
-the shop asks the gateway for **its own record** (what it received, the state, what it refunded) and compares it with ours
-and with the order. Each disagreement is listed in words. A payment that agrees is `MATCHED`; any difference is a
-`RECONCILIATION ERROR`. The summary shows what the company received against what we recorded, like a bank reconciliation.
-
-| It notices | Example | What can be done |
-|---|---|---|
-| Different amounts | Gateway received RM 4,602.00, the payment is for RM 4,502.00 | Nothing automatic: a person must look. The shop never accepts a wrong amount |
-| A missed payment notice | Gateway says paid, we say waiting | **Ask the payment company again** applies its answer through the same idempotent processor a webhook uses |
-| A failure or cancellation we never heard about | Gateway says failed, we say waiting | Same button |
-| We say paid, the gateway disagrees | | A person (nothing is changed behind anyone's back) |
-| Refunds on one side only | Gateway refunded RM 70.00, we have none | A person |
-| No record, or the gateway cannot be reached | | Reported, not hidden |
-| Our own books disagree | The payment is not for the order's total | A person |
-
-**To see an error yourself** (fake gateway, local): place an order, press **Pay**, and on the FakePay page open
-**"Test: pay a different amount"**, enter less than was asked and pay. The shop refuses to treat the order as paid
-(`AMOUNT_MISMATCH` in the payment's diary), and the Reconciliation page shows both amounts and the error.
-
-### Guard rails
-
-- Nobody can change **their own roles** or deactivate themselves, and the **last active admin** can never lose the role or be deactivated (so the shop cannot lock itself out).
-- Deactivating a user **signs them out immediately** (their sessions are removed, and a middleware that runs *before* authentication refuses their next request even if a session is still open).
-- A coupon that has been used on an order **cannot be deleted**, only switched off, because past orders refer to it.
-- A refund request must be decided before any smaller refund is made on the same payment.
-- Specification keys and types cannot change once created, because products already hold values under them.
-
-### Adding a product (and its photos)
-
-**Products -> New product.** Choose the category first: the specification boxes below it come from that category's definitions.
-Save, then add photos (JPG/PNG/WebP, up to 8, re-saved as safe WebP) and check the stock on the same page.
-
-**Where photos are kept** is one setting, `IMAGE_DISK`. `public` (the default) is the server's own disk
-(`storage/app/public`), which suits development. `s3` is any S3-compatible store (Cloudflare R2, Backblaze B2, Supabase
-Storage, AWS S3) configured with the usual `AWS_*` variables; customers then load photos straight from the bucket's public
-address (`AWS_URL`), with a one-year cache header since a photo's random name is never reused. The database holds only each
-photo's path, so moving is a copy: `php artisan shop:copy-images public s3` (it never deletes, and can be re-run). A failed
-upload returns 503 and records nothing; a photo's file is removed only after its row is gone. `shop:install` checks the
-store at start-up (missing settings stop the deploy; an unreachable store only warns).
-
-### Notifications
-
-Customers are emailed when an order is **placed**, **paid**, **shipped**, **delivered**, when a payment **fails**, and when a
-refund is **approved or declined**. People who hold `inventory.manage` are emailed when a product **drops to its alert level**
-(only the moment it crosses, not on every sale). All are queued and sent after the database change is safely committed.
-
-| Endpoint (all under `/api/admin`) | Permission |
-|---|---|
-| `GET dashboard?days=7\|30\|90` | `reports.view` |
-| `GET reports/sales?from&to` · `GET reports/sales/export?from&to` (CSV) | `reports.view` |
-| `GET payments` · `GET payments/{id}` | `payments.view` |
-| `GET reconciliation?from&to` · `POST payments/{id}/sync` | `payments.view` |
-| `GET users` · `GET users/{id}` · `PUT users/{id}/roles` · `PUT users/{id}/status` | `users.manage` |
-| `GET audit-logs` · `GET audit-logs/actions` | `audit.view` |
-| `GET/POST coupons` · `PUT/DELETE coupons/{id}` | `coupons.manage` |
-
-## Hosting it for free
-
-[docs/hosting-free.md](docs/hosting-free.md) is a step-by-step guide to a free public demo: the Vue site on **Netlify**, the
-API on **Render** (one Docker container: `backend/Dockerfile` runs nginx, PHP-FPM, the queue worker and the scheduler) and
-the database and product photos on **Supabase** (Neon and Cloudflare R2 are documented alternatives). Netlify forwards `/api`, `/sanctum` and `/storage` to the API (`netlify.toml`), so the browser sees
-one address and the cookie login keeps working. On first start the container migrates the database and runs
-`php artisan shop:install`, which creates the roles, the compatibility rules and the first admin from `ADMIN_EMAIL` /
-`ADMIN_PASSWORD` (and, only into an empty shop and only if `SEED_DEMO_CATALOG=true`, the demo catalog). It is safe to run again.
-A free host's disk does not survive a restart, so product photos go to a free bucket (`IMAGE_DISK=s3`).
-
-The guide's main route keeps the database and the photos in one free **Supabase** project (no card). Supabase publishes a
-database's `public` schema as a web API, so there the shop lives in a schema of its own: `DB_SCHEMA=shop`, created by
-`php artisan shop:prepare-database` before the migrations. That command refuses to start the shop (exit code 2) if its tables
-would land in a `public` schema that hands new tables to web-API roles, so forgetting the setting cannot publish customer data.
+Demo accounts are never created outside the `local` and `testing` environments. A server gets its first admin from
+`php artisan shop:install` instead ([Deployment](#deployment)).
+
+To try a purchase: add something to the cart, check out, press **Pay**, and choose an outcome on the FakePay page. The
+order's emails appear in Mailpit.
+
+## API documentation
+
+The reference is at **http://localhost:8000/docs/api** while the app runs, and in the repository as
+[`backend/openapi.json`](backend/openapi.json) (OpenAPI 3.1, ready for Postman or any other tool). It covers 87
+operations in 11 groups. For each one: the address and method, whether a login and which permission it needs, its rate
+limit, the request body with its limits, every answer with its shape, and the errors it can return. An introduction
+covers logging in, the money format, the error shape, paging, idempotent checkout and webhook signatures.
+
+It is **generated from the code** (routes, validation rules, response classes) by Scramble, so it cannot be forgotten.
+It is also **tested against real answers**: `backend/tests/Feature/ApiDocs` calls about 70 endpoints and fails if an
+answer is missing a documented field, has a different type, contains an undocumented field, or uses a status the
+reference does not list. Another test fails if `openapi.json` is out of date. After changing the API:
+
+```bash
+docker compose exec app composer docs
+```
 
 ## Tests and quality checks
 
 ```bash
-docker compose run --rm app ./vendor/bin/pest          # backend tests (use the pc_store_testing database)
-docker compose run --rm app ./vendor/bin/pint --test   # PHP code style
-cd frontend && npm test && npm run lint && npm run build
+docker compose exec app ./vendor/bin/pest            # 759 backend tests, on the pc_store_testing database
+docker compose exec app composer analyse             # static analysis: PHPStan level 5
+docker compose exec app ./vendor/bin/pint --test     # PHP code style
+docker compose exec frontend npm test                # 405 front-end tests
+docker compose exec frontend npm run lint            # ESLint
+docker compose exec frontend npm run format:check    # Prettier
+docker compose exec frontend npm run build           # the production build
 ```
 
-## Architecture notes (Phase 1)
+The backend tests run against real PostgreSQL and never touch development data: `phpunit.xml` forces the testing
+database. Besides the usual feature and unit tests there are three less usual kinds:
 
-- **Money is stored as integer sen** (`RM 4,602.00` = `460200`) and handled by `App\Support\Money`. No floats, so totals never drift.
-- **Auth** uses Sanctum's SPA mode: an httpOnly session cookie plus CSRF protection. The Vite dev server proxies `/api` and `/sanctum` so the browser sees one origin.
-- **RBAC**: `roles` and `permissions` tables with string permission keys (e.g. `products.manage`). `Gate::before` grants any ability a user's roles hold, so routes just use `can:<permission>` and new permissions need no code changes.
-- **Audit log**: `App\Services\AuditLogger` writes append-only rows and strips passwords, tokens and secrets.
-- **Flexible specifications**: `spec_definitions` describes each category's specs (label, type, unit, options, filterable) and `product_specifications` stores one typed value per product. The shop filters, product tables and validation are all generated from these rows, so a new category needs data, not code.
-- **Search and filters** live in `ProductSearch` (ILIKE with trigram indexes, filters on the *effective* price, stable sorting). Lazy loading is disabled outside production, so a missing eager load fails a test instead of silently causing N+1 queries.
-- **Inventory**: `stock`, `reserved` and `available = stock - reserved`, a database `CHECK (reserved <= stock)`, and an append-only `inventory_movements` ledger. Manual adjustments lock the row (`SELECT ... FOR UPDATE`).
-- **Tests never touch development data**: `phpunit.xml` forces the `pc_store_testing` database.
+- **Concurrency tests** (`tests/Concurrency`) start separate PHP processes and release them at the same instant. Eight
+  customers check out a product with three left: exactly three orders, five clean refusals, no shared order number.
+  Removing the stock lock, or the cart lock, fails a test.
+- **Reference tests** check the API reference against real answers (above).
+- **Deployment tests** cover the install command, the photo storage check and the guard that refuses to put the shop's
+  tables where a database host would publish them.
+
+**Continuous integration** (`.github/workflows/ci.yml`) runs all of the above on every push and pull request, and also
+builds the production image, starts it against an empty database and checks that it migrated, serves the shop, hides
+dot-files and sends its security headers. A weekly job audits PHP and JavaScript packages for known vulnerabilities.
+
+## Payment architecture
+
+The shop talks to a `PaymentGateway` **interface** with five methods: start a payment, read a webhook, ask for a
+payment's status, refund, and fetch the company's own record for reconciliation. A payment company is one class that
+implements it, chosen by `PAYMENT_PROVIDER`. Adding one means writing that class; checkout, refunds and reconciliation
+do not change.
+
+- A payment is always created for **the order's own total**. The request to start paying has no body.
+- A payment's every step is appended to `payment_transactions`, which a database trigger makes impossible to edit.
+- Paying turns **reserved** stock into **sold** stock in the same transaction that marks the order paid.
+- A payment that arrives after its order was cancelled is kept, flagged for refund, and never revives the order.
+- Refunds mark themselves as in progress before the company is called, call it outside the database transaction, and
+  use the refund's id as the idempotency key, so a timeout or a double click cannot pay out twice.
+- **Reconciliation** compares every payment with the company's own record and explains each difference. It never
+  "fixes" a wrong amount by itself.
+
+The included gateway, **FakePay**, is a simulator with its own payment page, real HTTP webhooks signed with a shared
+secret and delivered by the queue, retries and refunds. It refuses to run when `APP_ENV=production`. No real gateway is
+included. [More in docs/payments-and-refunds.md](docs/payments-and-refunds.md).
+
+## Webhook architecture
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Customer
+    participant S as Shop API
+    participant G as Payment company
+
+    C->>S: Pay for order (no amount sent)
+    S->>G: Create a payment for the order's total
+    G-->>S: Address of the payment page
+    S-->>C: Go to that page
+    C->>G: Pays
+    G-->>C: Sends the customer back (this proves nothing)
+    G->>S: Webhook "payment succeeded", signed
+    Note over S: Check the signature and that it is under 5 minutes old
+    Note over S: One transaction: record the event (unique),<br/>lock the order then the payment,<br/>mark PAID, reserved stock becomes sold
+    S-->>G: 200 processed
+    G->>S: The same webhook again (a retry)
+    S-->>G: 200 duplicate, nothing changes
+    C->>S: Is my order paid yet?
+    S-->>C: PAID
+```
+
+| What can go wrong | What happens |
+|---|---|
+| A forged or altered webhook | Refused with `401`: the signature is an HMAC-SHA256 of the time and the exact body, compared in constant time |
+| A genuine webhook replayed later | Refused: older than five minutes |
+| The same webhook delivered twice | The event's id is unique. The second delivery finds it and answers `200 duplicate` |
+| Processing fails half way | The whole transaction rolls back, including the record that the event was seen, and the answer is `500`, so the company's retry is processed normally |
+| Events arrive out of order | Rows are locked in a fixed order and every move is checked against the current state: "failed" after "paid" is ignored |
+| The amount differs | Not accepted. The payment stays unpaid and the difference is written down |
+| A webhook never arrives | A scheduled job asks the company about undecided payments and feeds the answer through the same code path |
+
+## PC compatibility architecture
+
+Each check is a small class in `backend/app/Services/Compatibility/Rules` (CPU socket against motherboard, RAM type,
+whether the graphics card fits the case, whether the power supply covers the estimated load, and so on; sixteen in
+all). `CompatibilityService` runs the enabled ones and returns a verdict: **compatible**, **warning** or
+**incompatible**. Errors block buying a build; warnings never do.
+
+- **One source of truth.** The same service judges the builder's live verdict, the list of parts offered for a slot,
+  adding a PC to the cart, every read of the cart and checkout.
+- **Rules read data, not product types.** A rule asks for a specification by key (`socket`, `ram_type`,
+  `gpu_max_length_mm`). If a part or a value is missing it stays silent instead of guessing, and a test fails if a rule
+  asks for a key the catalog does not define.
+- **Tunable without a deployment.** Each rule's on/off switch, severity and numbers (for example the spare power a
+  supply should have) live in the database, with safe defaults when a row is missing.
+- **Adding a rule** is one class and one line of configuration. Rules are plain objects and are unit-tested without a
+  database.
+- **Suggesting parts.** For "which motherboards fit this CPU", every candidate is judged against the build so far and
+  returned compatible first, then warnings, then incompatible (hidden unless asked for).
+
+[More in docs/catalog-and-pc-builder.md](docs/catalog-and-pc-builder.md#compatibility-engine).
+
+## Security
+
+- Login is an `httpOnly` session cookie with CSRF protection; login and registration are rate limited.
+- Every staff action needs a permission on its route; every record is checked for ownership. Another customer's order
+  answers `404`.
+- Uploaded images are decoded and re-encoded as WebP under a random name.
+- Every error is `{ "message": ... }` and nothing else, whatever the debug setting.
+- Security headers on the API and the website, including a content policy with no `unsafe-*` allowances, verified in a
+  real browser across the whole site. Only the shop's own website may read API answers from a browser.
+- An append-only audit log of who did what, with secrets stripped.
+
+The full list is in [docs/architecture.md](docs/architecture.md#security).
+
+## Deployment
+
+`backend/Dockerfile` builds one container that runs nginx, PHP-FPM, the queue worker and the scheduler. On start it
+checks its settings, waits for the database, migrates, and runs `php artisan shop:install`, which creates the roles,
+the compatibility rules and the first admin from `ADMIN_EMAIL` and `ADMIN_PASSWORD`. Everything it does is safe to
+repeat. The front end is a static build (`npm run build`) for any static host.
+
+**[docs/hosting-free.md](docs/hosting-free.md)** is a step-by-step guide to a free public demo: the website on
+Netlify, the API on Render, and the database and product photos on Supabase. It covers the limits of each free plan and
+what to do when something goes wrong.
+
+Two things a real shop needs that this repository does not include: a **real payment gateway** (FakePay refuses to run
+in production) and a **mail service** (the default writes emails to the log).
+
+## Project layout
+
+```
+backend/                  the Laravel API
+  app/Http/               controllers, form requests, resources, middleware
+  app/Services/           the business rules: Cart, Catalog, Compatibility, Orders, Payments, PcBuilder, Reports
+  app/Models/  app/Enums/ app/Policies/  app/Notifications/
+  database/               migrations, factories, seeders
+  tests/                  Unit, Feature, Concurrency
+  deploy/  Dockerfile     the production container
+  openapi.json            the published API reference
+frontend/                 the Vue app
+  src/pages/  src/components/  src/stores/  src/lib/  src/router/
+  tests/
+docs/                     architecture, feature pages, the hosting guide
+docker/  docker-compose.yml   the development environment
+.github/workflows/        continuous integration
+netlify.toml              the website's build, forwarding and security headers
+```
+
+## Future improvements
+
+Not built, in rough order of value:
+
+- **A real payment gateway** (Stripe, Billplz or toyyibPay) as a second implementation of the interface, and refunds
+  that are confirmed later by webhook.
+- **AI build recommendations**: describe a budget and a purpose, and get a build chosen from the real catalog and
+  passed through the same compatibility and pricing checks before it is shown.
+- **Product reviews** by customers who bought the product, and **shareable build links**.
+- **A customer profile page** (change name, password and email) and password reset by email.
+- **Browser-driven end-to-end tests** in CI, alongside the API and component tests.
+- **Search that forgives typos.** Today a search matches any part of a name or SKU (kept fast by trigram indexes), so
+  "ryzn" finds nothing; similarity matching, or a dedicated search engine, would fix that.
+- **Stricter static analysis** (PHPStan above level 5 mostly asks for more detailed array types).
+- **Monitoring**: error tracking and uptime alerts for a deployed shop.
