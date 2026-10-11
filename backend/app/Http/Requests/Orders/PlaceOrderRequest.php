@@ -28,6 +28,7 @@ class PlaceOrderRequest extends FormRequest
             'address_id' => ['required', 'integer', 'min:1'],
             'coupon_code' => ['nullable', 'string', 'max:40'],
             'notes' => ['nullable', 'string', 'max:500'],
+            /** @ignoreParam It arrives as the `Idempotency-Key` header (see prepareForValidation), so it is not a body field. */
             'idempotency_key' => ['nullable', 'string', 'regex:/^[A-Za-z0-9_-]{8,64}$/'],
         ];
     }

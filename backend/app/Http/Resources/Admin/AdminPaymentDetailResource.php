@@ -3,10 +3,15 @@
 namespace App\Http\Resources\Admin;
 
 use App\Http\Resources\Orders\RefundResource;
+use App\Models\Payment;
 use App\Support\Money;
 use Illuminate\Http\Request;
 
-/** One payment with its diary (every step it went through) and its refunds. Needs order.user, transactions and refunds. */
+/**
+ * One payment with its diary (every step it went through) and its refunds. Needs order.user, transactions and refunds.
+ *
+ * @mixin Payment
+ */
 class AdminPaymentDetailResource extends AdminPaymentResource
 {
     /** @return array<string, mixed> */

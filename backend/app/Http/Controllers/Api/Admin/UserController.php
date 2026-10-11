@@ -25,6 +25,7 @@ class UserController extends Controller
 {
     public function __construct(private readonly AuditLogger $audit) {}
 
+    /** List users. */
     public function index(Request $request): AnonymousResourceCollection
     {
         $filters = $request->validate([
@@ -46,11 +47,13 @@ class UserController extends Controller
         return AdminUserResource::collection($users);
     }
 
+    /** Show one user. */
     public function show(User $user): AdminUserResource
     {
         return new AdminUserResource($user->load('roles')->loadCount('orders'));
     }
 
+    /** Change a user's roles. */
     public function updateRoles(UpdateUserRolesRequest $request, User $user): AdminUserResource
     {
         $slugs = array_values(array_unique($request->validated('roles')));
@@ -74,6 +77,11 @@ class UserController extends Controller
         return new AdminUserResource($user->fresh()->load('roles')->loadCount('orders'));
     }
 
+    /**
+     * Activate or deactivate a user.
+     *
+     * Activate or deactivate a user. A deactivated user is signed out on their next request.
+     */
     public function updateStatus(UpdateUserStatusRequest $request, User $user): AdminUserResource
     {
         $active = $request->boolean('is_active');

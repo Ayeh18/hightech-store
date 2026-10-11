@@ -16,7 +16,11 @@ class ReconciliationController extends Controller
 {
     public function __construct(private readonly ReconciliationService $reconciliation) {}
 
-    /** `?from=2026-10-01&to=2026-10-07`: every payment sent to a gateway in that period, checked against the gateway. */
+    /**
+     * Check payments against the payment company's records.
+     *
+     * `?from=2026-10-01&to=2026-10-07`: every payment sent to a gateway in that period, checked against the gateway.
+     */
     public function index(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -42,7 +46,11 @@ class ReconciliationController extends Controller
         ]]);
     }
 
-    /** Ask the gateway again about one payment and apply its answer (only for disagreements that a missed message explains). */
+    /**
+     * Re-check one payment with the payment company.
+     *
+     * Ask the gateway again about one payment and apply its answer (only for disagreements that a missed message explains).
+     */
     public function sync(Request $request, Payment $payment): JsonResponse
     {
         return response()->json(['data' => $this->reconciliation->sync($payment, $request->user())->toArray()]);

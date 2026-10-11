@@ -3,9 +3,14 @@
 namespace App\Http\Resources\Admin;
 
 use App\Http\Resources\Orders\OrderResource;
+use App\Models\Order;
 use Illuminate\Http\Request;
 
-/** The whole order for staff: everything the customer sees, plus who it is and every payment. Needs `user` and Order::DETAIL_RELATIONS. */
+/**
+ * The whole order for staff: everything the customer sees, plus who it is and every payment. Needs `user` and Order::DETAIL_RELATIONS.
+ *
+ * @mixin Order
+ */
 class AdminOrderResource extends OrderResource
 {
     /** @return array<string, mixed> */

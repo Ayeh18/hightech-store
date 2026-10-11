@@ -16,7 +16,11 @@ class FulfilmentController extends Controller
 {
     public function __construct(private readonly FulfilmentService $fulfilment) {}
 
-    /** PAID -> PROCESSING, or PROCESSING -> PACKED. */
+    /**
+     * Move an order to its next step.
+     *
+     * PAID -> PROCESSING, or PROCESSING -> PACKED.
+     */
     public function advance(AdvanceOrderRequest $request, Order $order): AdminOrderResource
     {
         $this->fulfilment->advance($order, OrderStatus::from($request->validated('status')), $request->user());
@@ -24,7 +28,11 @@ class FulfilmentController extends Controller
         return $this->fresh($order);
     }
 
-    /** PACKED -> SHIPPED, recording the carrier and tracking number. */
+    /**
+     * Mark a packed order as shipped.
+     *
+     * PACKED -> SHIPPED, recording the carrier and tracking number.
+     */
     public function ship(ShipOrderRequest $request, Order $order): AdminOrderResource
     {
         $this->fulfilment->ship($order, $request->validated('carrier'), $request->validated('tracking_number'), $request->user());
@@ -32,7 +40,11 @@ class FulfilmentController extends Controller
         return $this->fresh($order);
     }
 
-    /** SHIPPED -> DELIVERED. */
+    /**
+     * Mark a shipped order as delivered.
+     *
+     * SHIPPED -> DELIVERED.
+     */
     public function deliver(Request $request, Order $order): AdminOrderResource
     {
         $this->fulfilment->markDelivered($order, $request->user());

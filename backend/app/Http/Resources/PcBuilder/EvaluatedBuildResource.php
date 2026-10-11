@@ -47,6 +47,7 @@ class EvaluatedBuildResource extends JsonResource
             ], $priced->issues),
             // Compatibility problems (sockets, sizes, power...).
             'compatibility' => [
+                /** @var 'compatible'|'warning'|'incompatible' */
                 'status' => $this->compatibility->status(),
                 'issues' => array_map(fn (CompatibilityIssue $i) => [
                     'rule' => $i->rule,

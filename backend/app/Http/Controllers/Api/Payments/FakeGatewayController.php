@@ -17,6 +17,11 @@ use Illuminate\Validation\Rule;
  */
 class FakeGatewayController extends Controller
 {
+    /**
+     * FakePay: what is being paid.
+     *
+     * FakePay: what is being paid, for its payment page.
+     */
     public function show(string $reference, GatewayManager $gateways, FakePay $fake): JsonResponse
     {
         abort_unless($gateways->has('fake'), 404);
@@ -32,7 +37,11 @@ class FakeGatewayController extends Controller
         ]]);
     }
 
-    /** The customer's choice on the page. The result reaches the shop later, as a webhook. */
+    /**
+     * FakePay: choose how the payment ends.
+     *
+     * The customer's choice on the page. The result reaches the shop later, as a webhook.
+     */
     public function complete(Request $request, string $reference, GatewayManager $gateways, FakePay $fake): JsonResponse
     {
         abort_unless($gateways->has('fake'), 404);

@@ -18,6 +18,7 @@ class CouponController extends Controller
 {
     public function __construct(private readonly AuditLogger $audit) {}
 
+    /** List coupons. */
     public function index(Request $request): AnonymousResourceCollection
     {
         $term = $request->validate(['q' => ['nullable', 'string', 'max:40']])['q'] ?? null;
@@ -31,6 +32,7 @@ class CouponController extends Controller
         return CouponResource::collection($coupons);
     }
 
+    /** Create a coupon. */
     public function store(CouponRequest $request): JsonResponse
     {
         $coupon = Coupon::create($request->couponAttributes());
@@ -39,6 +41,7 @@ class CouponController extends Controller
         return (new CouponResource($this->fresh($coupon)))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
+    /** Change a coupon. */
     public function update(CouponRequest $request, Coupon $coupon): CouponResource
     {
         $old = $coupon->only(['code', 'type', 'value', 'is_active']);
@@ -48,7 +51,11 @@ class CouponController extends Controller
         return new CouponResource($this->fresh($coupon));
     }
 
-    /** Only a coupon nobody has ever used. After that the history matters, so switch it off instead. */
+    /**
+     * Delete a coupon that was never used.
+     *
+     * Only a coupon nobody has ever used. After that the history matters, so switch it off instead.
+     */
     public function destroy(Request $request, Coupon $coupon): Response
     {
         if ($coupon->usages()->exists()) {

@@ -9,7 +9,11 @@ use App\Services\PcBuilder\CandidatePart;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** A product offered for a slot, with how well it fits the rest of the build. @mixin CandidatePart */
+/**
+ * A product offered for a slot, with how well it fits the rest of the build.
+ *
+ * @mixin CandidatePart
+ */
 class CandidatePartResource extends JsonResource
 {
     /** @return array<string, mixed> */
@@ -18,6 +22,7 @@ class CandidatePartResource extends JsonResource
         return [
             ...(new ProductListResource($this->product))->toArray($request),
             'compatibility' => [
+                /** @var 'compatible'|'warning'|'incompatible' */
                 'status' => $this->report->status(),
                 'issues' => array_map(fn (CompatibilityIssue $i) => [
                     'rule' => $i->rule,

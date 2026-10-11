@@ -6,7 +6,11 @@ use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** One payment attempt, as the customer needs to see it. @mixin Payment */
+/**
+ * One payment attempt, as the customer needs to see it.
+ *
+ * @mixin Payment
+ */
 class PaymentResource extends JsonResource
 {
     /** @return array<string, mixed> */

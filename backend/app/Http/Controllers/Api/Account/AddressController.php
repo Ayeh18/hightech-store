@@ -17,11 +17,13 @@ class AddressController extends Controller
 {
     public function __construct(private readonly AddressService $addresses) {}
 
+    /** List my delivery addresses. */
     public function index(Request $request): AnonymousResourceCollection
     {
         return AddressResource::collection($request->user()->addresses()->orderByDesc('is_default')->orderBy('id')->get());
     }
 
+    /** Add a delivery address. */
     public function store(AddressRequest $request): JsonResponse
     {
         $address = $this->addresses->create($request->user(), $request->validated());
@@ -29,6 +31,7 @@ class AddressController extends Controller
         return (new AddressResource($address))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
+    /** Change one of my delivery addresses. */
     public function update(AddressRequest $request, Address $address): AddressResource
     {
         Gate::authorize('update', $address);
@@ -36,6 +39,7 @@ class AddressController extends Controller
         return new AddressResource($this->addresses->update($address, $request->validated()));
     }
 
+    /** Delete one of my delivery addresses. */
     public function destroy(Address $address): Response
     {
         Gate::authorize('delete', $address);

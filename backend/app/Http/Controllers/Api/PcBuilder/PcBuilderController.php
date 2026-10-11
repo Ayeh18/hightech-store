@@ -17,6 +17,8 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class PcBuilderController extends Controller
 {
     /**
+     * The builder's slots.
+     *
      * The builder's slots, in screen order, and the category that supplies each one.
      * Products for a slot come from GET /api/products?category={category.slug}.
      */
@@ -39,6 +41,8 @@ class PcBuilderController extends Controller
     }
 
     /**
+     * Check a build: prices, stock and compatibility.
+     *
      * Recalculates a build from current database prices and stock and checks its compatibility.
      * The browser's totals are never trusted.
      */
@@ -48,6 +52,8 @@ class PcBuilderController extends Controller
     }
 
     /**
+     * Parts for one slot, best fit first.
+     *
      * Parts for one slot, ranked by how well they fit what is already chosen: compatible first, then warnings,
      * then incompatible ones (hidden unless include_incompatible=1). Search, filters and sorting still apply.
      */

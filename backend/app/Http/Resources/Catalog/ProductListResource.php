@@ -20,6 +20,8 @@ class ProductListResource extends JsonResource
     {
         $values = $this->specValues();
         $definitions = $this->category->specDefinitions;
+        $inventory = $this->inventory;
+        $available = $inventory?->available ?? 0;
 
         return [
             'id' => $this->id,
@@ -38,7 +40,16 @@ class ProductListResource extends JsonResource
                 ->filter(fn (SpecDefinition $d) => isset($values[$d->key]))
                 ->map(fn (SpecDefinition $d) => ['key' => $d->key, 'label' => $d->label, 'display' => ProductResource::display($d, $values[$d->key])])
                 ->values(),
-            ...ProductResource::availability($this->resource, $request),
+            // What a customer may know about stock: whether it can be bought, and a "low stock" warning.
+            'in_stock' => $available > 0,
+            'low_stock' => $inventory?->isLowStock() ?? false,
+            // Exact quantities are only included for staff who manage inventory.
+            'inventory' => $this->when((bool) $request->user('sanctum')?->can('inventory.manage'), fn () => [
+                'stock' => $inventory?->stock ?? 0,
+                'reserved' => $inventory?->reserved ?? 0,
+                'available' => $available,
+                'low_stock_threshold' => $inventory?->low_stock_threshold ?? 0,
+            ]),
         ];
     }
 }

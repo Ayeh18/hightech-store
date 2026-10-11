@@ -73,6 +73,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             $status = $e->getStatusCode();
             $message = match (true) {
+                $status === 404 => 'Resource not found.',
                 $status === 419 => 'Your session expired. Please refresh and try again.',
                 $status === 405 => 'That action is not available at this address.',
                 $status === 429 => 'Too many attempts. Please wait a moment and try again.',

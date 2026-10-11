@@ -6,7 +6,11 @@ use App\Models\Refund;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** A refund. Customers see their own words and what staff said; staff also see the internal details. @mixin Refund */
+/**
+ * A refund. Customers see their own words and what staff said; staff also see the internal details.
+ *
+ * @mixin Refund
+ */
 class RefundResource extends JsonResource
 {
     /** @return array<string, mixed> */

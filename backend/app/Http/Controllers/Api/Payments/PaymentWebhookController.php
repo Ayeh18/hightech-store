@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\Payments\Exceptions\InvalidWebhook;
 use App\Services\Payments\GatewayManager;
 use App\Services\Payments\PaymentProcessor;
+use Dedoc\Scramble\Attributes\Response as ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -16,6 +17,14 @@ use Illuminate\Support\Facades\Log;
  */
 class PaymentWebhookController extends Controller
 {
+    /**
+     * Receive a payment notification (webhook).
+     *
+     * Called by the payment company, not by a logged-in user: the signature is the only proof it is genuine (see "Payments and webhooks"). Every outcome that is not an error is answered `200` with what was done, including `duplicate` for an event already processed.
+     */
+    #[ApiResponse(200, 'Understood. `status` says what was done: `processed`, `duplicate`, `ignored`, `amount_mismatch` or `late_payment`.', type: 'array{status: string}')]
+    #[ApiResponse(401, 'The signature is missing, wrong or too old.', type: 'array{message: string}')]
+    #[ApiResponse(400, 'The signature is valid but the body could not be understood.', type: 'array{message: string}')]
     public function handle(Request $request, string $provider, GatewayManager $gateways, PaymentProcessor $processor): JsonResponse
     {
         abort_unless($gateways->has($provider), 404);

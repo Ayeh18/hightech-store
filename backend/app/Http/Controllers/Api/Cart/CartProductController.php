@@ -12,7 +12,11 @@ use Illuminate\Http\Response;
 
 class CartProductController extends Controller
 {
-    /** Add a single product (or more of one already in the cart). Returns the whole updated cart. */
+    /**
+     * Add a product to my cart.
+     *
+     * Add a single product (or more of one already in the cart). Returns the whole updated cart.
+     */
     public function store(AddProductToCartRequest $request, CartService $cart, CartEvaluator $evaluator): JsonResponse
     {
         $cart->addProduct($request->user(), (int) $request->validated('product_id'), $request->quantity());

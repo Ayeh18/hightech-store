@@ -12,12 +12,21 @@ class CartController extends Controller
 {
     public function __construct(private readonly CartService $cart, private readonly CartEvaluator $evaluator) {}
 
+    /**
+     * Show my cart.
+     *
+     * Show my cart, re-priced and re-checked against current stock.
+     */
     public function show(Request $request): CartResource
     {
         return $this->respond($request);
     }
 
-    /** Remove everything from the cart. */
+    /**
+     * Empty my cart.
+     *
+     * Remove everything from the cart.
+     */
     public function clear(Request $request): CartResource
     {
         $this->cart->clear($request->user());
@@ -25,7 +34,11 @@ class CartController extends Controller
         return $this->respond($request);
     }
 
-    /** "Accept the new prices": stop warning about price changes that happened before now. */
+    /**
+     * Accept the cart's new prices.
+     *
+     * "Accept the new prices": stop warning about price changes that happened before now.
+     */
     public function acceptPrices(Request $request): CartResource
     {
         $this->cart->acceptPrices($request->user());

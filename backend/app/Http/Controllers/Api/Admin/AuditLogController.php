@@ -13,6 +13,11 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 /** Who did what, newest first. The routes require the audit.view permission (admins). Read-only: nothing here edits the log. */
 class AuditLogController extends Controller
 {
+    /**
+     * List audit log entries.
+     *
+     * List audit log entries, newest first. Can be narrowed by action, text, subject and date.
+     */
     public function index(Request $request): AnonymousResourceCollection
     {
         $filters = $request->validate([
@@ -39,7 +44,11 @@ class AuditLogController extends Controller
         return AuditLogResource::collection($logs);
     }
 
-    /** Every action that has been recorded, for the filter list. */
+    /**
+     * List the kinds of action that have been recorded.
+     *
+     * Every action that has been recorded, for the filter list.
+     */
     public function actions(): JsonResponse
     {
         return response()->json(['data' => AuditLog::query()->distinct()->orderBy('action')->pluck('action')]);

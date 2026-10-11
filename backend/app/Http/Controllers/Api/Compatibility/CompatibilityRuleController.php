@@ -16,11 +16,21 @@ class CompatibilityRuleController extends Controller
 {
     public function __construct(private readonly CompatibilityService $compatibility, private readonly RuleRegistry $registry) {}
 
+    /**
+     * List the compatibility rules.
+     *
+     * List the compatibility rules with their current settings.
+     */
     public function index(): AnonymousResourceCollection
     {
         return CompatibilityRuleResource::collection(array_values($this->compatibility->rules()->all()));
     }
 
+    /**
+     * Change a compatibility rule.
+     *
+     * Switch a compatibility rule on or off, or change its severity and settings.
+     */
     public function update(UpdateCompatibilityRuleRequest $request, string $key, AuditLogger $audit): CompatibilityRuleResource
     {
         abort_unless($this->registry->get($key), 404);

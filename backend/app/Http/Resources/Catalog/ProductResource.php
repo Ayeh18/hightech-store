@@ -53,32 +53,4 @@ class ProductResource extends JsonResource
             default => (string) $value,
         };
     }
-
-    /**
-     * What a customer may know about stock: whether it is available, and a "low stock" warning.
-     * Exact quantities are only included for staff who manage inventory.
-     *
-     * @return array<string, mixed>
-     */
-    public static function availability(Product $product, Request $request): array
-    {
-        $inventory = $product->inventory;
-        $available = $inventory?->available ?? 0;
-
-        $data = [
-            'in_stock' => $available > 0,
-            'low_stock' => $inventory?->isLowStock() ?? false,
-        ];
-
-        if ($request->user('sanctum')?->can('inventory.manage')) {
-            $data['inventory'] = [
-                'stock' => $inventory?->stock ?? 0,
-                'reserved' => $inventory?->reserved ?? 0,
-                'available' => $available,
-                'low_stock_threshold' => $inventory?->low_stock_threshold ?? 0,
-            ];
-        }
-
-        return $data;
-    }
 }

@@ -13,7 +13,11 @@ use Illuminate\Support\Facades\Gate;
 
 class OrderController extends Controller
 {
-    /** My orders, newest first. */
+    /**
+     * List my orders.
+     *
+     * My orders, newest first.
+     */
     public function index(Request $request): AnonymousResourceCollection
     {
         $orders = $request->user()->orders()->with('items')->latest()->paginate(10);
@@ -21,6 +25,7 @@ class OrderController extends Controller
         return OrderSummaryResource::collection($orders);
     }
 
+    /** Show one of my orders. */
     public function show(Order $order): OrderResource
     {
         Gate::authorize('view', $order);
@@ -28,7 +33,11 @@ class OrderController extends Controller
         return new OrderResource($order->load(Order::DETAIL_RELATIONS));
     }
 
-    /** Cancel an unpaid order: its stock goes back on the shelf and any coupon is freed. */
+    /**
+     * Cancel one of my unpaid orders.
+     *
+     * Cancel an unpaid order: its stock goes back on the shelf and any coupon is freed.
+     */
     public function cancel(Request $request, Order $order, OrderService $orders): OrderResource
     {
         Gate::authorize('cancel', $order);

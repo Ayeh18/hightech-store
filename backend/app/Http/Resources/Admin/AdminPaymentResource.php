@@ -6,7 +6,11 @@ use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** A payment as staff see it. The gateway's own reference is for people allowed to view payments. @mixin Payment */
+/**
+ * A payment as staff see it. The gateway's own reference is for people allowed to view payments.
+ *
+ * @mixin Payment
+ */
 class AdminPaymentResource extends JsonResource
 {
     /** @return array<string, mixed> */

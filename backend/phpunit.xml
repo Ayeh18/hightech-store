@@ -21,7 +21,12 @@
         </include>
     </source>
     <php>
+        <!-- Building the API reference (tests/Feature/ApiDocs) analyses the whole codebase and needs more than PHP's default 128M. -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing" force="true"/>
+        <!-- The API reference names the session cookie, which is built from the app name. Fixed here and in `composer docs`
+             so that the published openapi.json does not depend on anybody's own .env. -->
+        <env name="APP_NAME" value="PC Custom Store" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file" force="true"/>
         <env name="BCRYPT_ROUNDS" value="4" force="true"/>
         <env name="BROADCAST_CONNECTION" value="null" force="true"/>

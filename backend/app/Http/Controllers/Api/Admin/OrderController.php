@@ -15,6 +15,7 @@ use Illuminate\Validation\Rule;
 /** Staff view of every customer's orders. The route requires the orders.manage permission. */
 class OrderController extends Controller
 {
+    /** List every order (staff view). */
     public function index(Request $request): AnonymousResourceCollection
     {
         $filters = $request->validate([
@@ -39,6 +40,7 @@ class OrderController extends Controller
         return AdminOrderSummaryResource::collection($orders);
     }
 
+    /** Show one order, with its customer and every payment. */
     public function show(Order $order): AdminOrderResource
     {
         return new AdminOrderResource($order->load([...Order::DETAIL_RELATIONS, 'user']));

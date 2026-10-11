@@ -6,6 +6,7 @@ use App\Enums\BuilderSlot;
 use App\Models\PcBuild;
 use App\Services\Compatibility\ActiveRules;
 use App\Services\PcBuilder\BuildEvaluator;
+use App\Support\Money;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -29,15 +30,20 @@ class PcBuildSummaryResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            /** @var Money */
             'subtotal' => $priced->subtotal,
+            /** @var int */
             'item_count' => $this->items->sum('quantity'),
             // In builder order (CPU, motherboard, RAM, ...), not the order the rows were inserted.
             'parts' => $this->items
                 ->sortBy(fn ($item) => array_search($item->slot, BuilderSlot::cases(), true))
                 ->map(fn ($item) => ['slot' => $item->slot->value, 'name' => $item->product->name])
                 ->values(),
+            /** @var bool */
             'complete' => $priced->isComplete(),
+            /** @var bool */
             'purchasable' => $evaluated->isPurchasable(),
+            /** @var 'compatible'|'warning'|'incompatible' */
             'compatibility_status' => $evaluated->compatibility->status(),
             'issue_count' => count($priced->issues) + count($evaluated->compatibility->issues),
             'updated_at' => $this->updated_at?->toIso8601String(),

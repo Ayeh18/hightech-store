@@ -55,8 +55,6 @@ Route::prefix('auth')->group(function () {
 
 // Anything under /api/admin requires the "admin.access" permission (granted to admin and staff).
 Route::middleware(['auth:sanctum', 'can:admin.access'])->prefix('admin')->group(function () {
-    Route::get('ping', fn () => response()->json(['message' => 'pong']));
-
     // Getting orders to customers (staff and admins).
     Route::middleware('can:orders.manage')->group(function () {
         Route::get('orders', [AdminOrderController::class, 'index']);

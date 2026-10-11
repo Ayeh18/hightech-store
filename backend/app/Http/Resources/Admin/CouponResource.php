@@ -8,7 +8,11 @@ use App\Support\Money;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** A coupon for admins. `used_count` (redemptions that still count) comes from withCount. @mixin Coupon */
+/**
+ * A coupon for admins. `used_count` (redemptions that still count) comes from withCount.
+ *
+ * @mixin Coupon
+ */
 class CouponResource extends JsonResource
 {
     /** @return array<string, mixed> */

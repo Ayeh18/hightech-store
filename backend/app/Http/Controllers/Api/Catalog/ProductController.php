@@ -22,18 +22,31 @@ class ProductController extends Controller
         private readonly ProductService $products,
     ) {}
 
-    /** Public shop listing: only published products. */
+    /**
+     * List published products.
+     *
+     * Public shop listing: only published products.
+     */
     public function index(ProductIndexRequest $request): AnonymousResourceCollection
     {
         return ProductListResource::collection($this->search->paginate($request->filters()));
     }
 
-    /** Admin listing: includes drafts and archived products, filterable by status. */
+    /**
+     * List products for staff, drafts included.
+     *
+     * Admin listing: includes drafts and archived products, filterable by status.
+     */
     public function adminIndex(ProductIndexRequest $request): AnonymousResourceCollection
     {
         return ProductListResource::collection($this->search->paginate($request->filters(), includeHidden: true));
     }
 
+    /**
+     * Show one product.
+     *
+     * Show one product. A product that is not published answers 404 to customers.
+     */
     public function show(Request $request, Product $product): ProductResource
     {
         $canSeeHidden = (bool) $request->user('sanctum')?->can('products.manage');
@@ -44,6 +57,7 @@ class ProductController extends Controller
         return new ProductResource($product->load('brand', 'category.specDefinitions', 'images', 'inventory', 'specifications'));
     }
 
+    /** Create a product. */
     public function store(ProductRequest $request): JsonResponse
     {
         $product = $this->products->create($request->validated(), $request->user());
@@ -51,11 +65,13 @@ class ProductController extends Controller
         return (new ProductResource($product))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
+    /** Change a product. */
     public function update(ProductRequest $request, Product $product): ProductResource
     {
         return new ProductResource($this->products->update($product, $request->validated(), $request->user()));
     }
 
+    /** Delete a product. */
     public function destroy(Request $request, Product $product): Response
     {
         $this->products->delete($product, $request->user());

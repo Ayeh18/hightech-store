@@ -29,7 +29,11 @@ class RefundController extends Controller
 {
     public function __construct(private readonly RefundService $refunds) {}
 
-    /** The refund queue. `?status=REQUESTED` is the list of customer requests waiting for a decision. */
+    /**
+     * List refunds.
+     *
+     * The refund queue. `?status=REQUESTED` is the list of customer requests waiting for a decision.
+     */
     public function index(Request $request): AnonymousResourceCollection
     {
         $status = $request->validate(['status' => ['nullable', Rule::enum(RefundStatus::class)]])['status'] ?? null;
@@ -43,7 +47,11 @@ class RefundController extends Controller
         return RefundResource::collection($refunds);
     }
 
-    /** Payments that arrived after their order was cancelled and still need their money sent back. */
+    /**
+     * List late payments that still need refunding.
+     *
+     * Payments that arrived after their order was cancelled and still need their money sent back.
+     */
     public function needingRefund(): AnonymousResourceCollection
     {
         $payments = Payment::query()
@@ -56,22 +64,37 @@ class RefundController extends Controller
         return AdminPaymentResource::collection($payments);
     }
 
+    /**
+     * Approve a refund request.
+     *
+     * Approve a customer's refund request and send the money back.
+     */
     public function approve(ApproveRefundRequest $request, Refund $refund): RefundResource
     {
         return new RefundResource($this->refunds->approve($refund, $request->user(), $request->validated('restock'), $request->validated('note')));
     }
 
+    /**
+     * Decline a refund request.
+     *
+     * Decline a customer's refund request, with a reason the customer will see.
+     */
     public function reject(RejectRefundRequest $request, Refund $refund): RefundResource
     {
         return new RefundResource($this->refunds->reject($refund, $request->user(), $request->validated('note')));
     }
 
+    /** Try a failed refund again. */
     public function retry(Request $request, Refund $refund): RefundResource
     {
         return new RefundResource($this->refunds->retry($refund, $request->user()));
     }
 
-    /** Refund an amount (in sen) on one payment: a goodwill gesture, or a late payment in full. */
+    /**
+     * Refund an amount on one payment.
+     *
+     * Refund an amount (in sen) on one payment: a goodwill gesture, or a late payment in full.
+     */
     public function issue(IssueRefundRequest $request, Payment $payment): RefundResource
     {
         $data = $request->validated();
@@ -85,7 +108,11 @@ class RefundController extends Controller
         ));
     }
 
-    /** Cancel a paid order that has not shipped: refunds it in full and puts the goods back on the shelf. */
+    /**
+     * Cancel a paid order and refund it.
+     *
+     * Cancel a paid order that has not shipped: refunds it in full and puts the goods back on the shelf.
+     */
     public function cancelOrder(CancelPaidOrderRequest $request, Order $order): RefundResource
     {
         return new RefundResource($this->refunds->cancelPaidOrder($order, $request->user(), $request->validated('note')));

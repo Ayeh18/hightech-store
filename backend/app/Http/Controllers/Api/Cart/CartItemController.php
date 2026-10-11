@@ -15,6 +15,7 @@ class CartItemController extends Controller
 {
     public function __construct(private readonly CartService $cart, private readonly CartEvaluator $evaluator) {}
 
+    /** Change the quantity of a line in my cart. */
     public function update(UpdateCartItemRequest $request, CartItem $item): CartResource
     {
         Gate::authorize('update', $item);
@@ -24,6 +25,7 @@ class CartItemController extends Controller
         return $this->respond($request);
     }
 
+    /** Remove a line from my cart. */
     public function destroy(Request $request, CartItem $item): CartResource
     {
         Gate::authorize('delete', $item);

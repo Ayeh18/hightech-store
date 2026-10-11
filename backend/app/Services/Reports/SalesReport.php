@@ -123,7 +123,7 @@ class SalesReport
             ->selectRaw('p.id, p.name, p.sku, sum(i.quantity) as units, sum(i.line_total) as revenue')
             ->orderByDesc('revenue')->orderBy('p.id')
             ->limit($limit)->get()
-            ->map(fn ($r) => ['id' => $r->id, 'name' => $r->name, 'sku' => $r->sku, 'units' => (int) $r->units, 'revenue' => Money::fromSen((int) $r->revenue)])
+            ->map(fn ($r) => ['id' => (int) $r->id, 'name' => (string) $r->name, 'sku' => (string) $r->sku, 'units' => (int) $r->units, 'revenue' => Money::fromSen((int) $r->revenue)])
             ->all();
     }
 
@@ -137,7 +137,7 @@ class SalesReport
             ->selectRaw('c.id, c.name, sum(i.quantity) as units, sum(i.line_total) as revenue')
             ->orderByDesc('revenue')->orderBy('c.id')
             ->get()
-            ->map(fn ($r) => ['id' => $r->id, 'name' => $r->name, 'units' => (int) $r->units, 'revenue' => Money::fromSen((int) $r->revenue)])
+            ->map(fn ($r) => ['id' => (int) $r->id, 'name' => (string) $r->name, 'units' => (int) $r->units, 'revenue' => Money::fromSen((int) $r->revenue)])
             ->all();
     }
 

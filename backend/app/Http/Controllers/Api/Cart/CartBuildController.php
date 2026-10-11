@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Gate;
 class CartBuildController extends Controller
 {
     /**
+     * Add a whole PC to my cart.
+     *
      * Add a whole PC from a saved build or from the parts in the builder. The server re-validates it (complete, in
      * stock, compatible) and stores a snapshot of its parts and prices in the cart.
      */

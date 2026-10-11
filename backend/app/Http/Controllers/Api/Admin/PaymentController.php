@@ -14,6 +14,7 @@ use Illuminate\Validation\Rule;
 /** Every payment attempt and its diary. The routes require the payments.view permission (admins). */
 class PaymentController extends Controller
 {
+    /** List every payment. */
     public function index(Request $request): AnonymousResourceCollection
     {
         $filters = $request->validate([
@@ -36,6 +37,7 @@ class PaymentController extends Controller
         return AdminPaymentResource::collection($payments);
     }
 
+    /** Show one payment with its full history. */
     public function show(Payment $payment): AdminPaymentDetailResource
     {
         return new AdminPaymentDetailResource($payment->load(['order.user', 'transactions', 'refunds']));

@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 it('blocks guests from the admin area', function () {
-    $this->getJson('/api/admin/ping')->assertUnauthorized();
+    $this->getJson('/api/admin/dashboard')->assertUnauthorized();
 });
 
 it('forbids customers from the admin area', function () {
@@ -13,7 +13,7 @@ it('forbids customers from the admin area', function () {
     $customer->assignRole('customer');
 
     // The body must be a plain message: no exception class, file path or stack trace.
-    $this->actingAs($customer)->getJson('/api/admin/ping')
+    $this->actingAs($customer)->getJson('/api/admin/dashboard')
         ->assertForbidden()
         ->assertExactJson(['message' => 'You do not have permission to perform this action.']);
 });
@@ -22,7 +22,7 @@ it('lets staff and admin into the admin area', function (string $role) {
     $user = User::factory()->create();
     $user->assignRole($role);
 
-    $this->actingAs($user)->getJson('/api/admin/ping')->assertOk()->assertJson(['message' => 'pong']);
+    $this->actingAs($user)->getJson('/api/admin/dashboard')->assertOk();
 })->with(['staff', 'admin']);
 
 it('gives staff fewer permissions than admin', function () {

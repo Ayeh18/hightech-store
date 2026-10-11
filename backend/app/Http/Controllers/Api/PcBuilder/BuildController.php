@@ -22,6 +22,7 @@ class BuildController extends Controller
 
     public function __construct(private readonly PcBuildService $builds) {}
 
+    /** List my saved builds. */
     public function index(Request $request): AnonymousResourceCollection
     {
         $builds = $request->user()->pcBuilds()
@@ -35,6 +36,7 @@ class BuildController extends Controller
         return PcBuildSummaryResource::collection($builds);
     }
 
+    /** Save a build. */
     public function store(SaveBuildRequest $request): JsonResponse
     {
         $build = $this->builds->create($request->user(), $request->validated('name'), $request->selection());
@@ -42,6 +44,7 @@ class BuildController extends Controller
         return (new PcBuildResource($build->load(self::FULL)))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
+    /** Show one of my saved builds. */
     public function show(PcBuild $build): PcBuildResource
     {
         Gate::authorize('view', $build);
@@ -49,6 +52,7 @@ class BuildController extends Controller
         return new PcBuildResource($build->load(self::FULL));
     }
 
+    /** Change a saved build. */
     public function update(SaveBuildRequest $request, PcBuild $build): PcBuildResource
     {
         Gate::authorize('update', $build);
@@ -58,6 +62,7 @@ class BuildController extends Controller
         return new PcBuildResource($build->load(self::FULL));
     }
 
+    /** Delete a saved build. */
     public function destroy(PcBuild $build): Response
     {
         Gate::authorize('delete', $build);
@@ -67,6 +72,7 @@ class BuildController extends Controller
         return response()->noContent();
     }
 
+    /** Copy one of my saved builds. */
     public function duplicate(PcBuild $build): JsonResponse
     {
         Gate::authorize('view', $build);

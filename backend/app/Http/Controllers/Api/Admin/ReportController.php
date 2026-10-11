@@ -14,6 +14,11 @@ class ReportController extends Controller
 {
     public function __construct(private readonly SalesReport $sales) {}
 
+    /**
+     * Sales report for a period.
+     *
+     * Sales for a period: totals per day and the best-selling products.
+     */
     public function sales(Request $request): JsonResponse
     {
         [$from, $to] = $this->range($request);
@@ -26,7 +31,11 @@ class ReportController extends Controller
         ]]);
     }
 
-    /** One row per day. Amounts are in ringgit with two decimals, ready for a spreadsheet. */
+    /**
+     * Download the sales report as CSV.
+     *
+     * One row per day. Amounts are in ringgit with two decimals, ready for a spreadsheet.
+     */
     public function export(Request $request): StreamedResponse
     {
         [$from, $to] = $this->range($request);

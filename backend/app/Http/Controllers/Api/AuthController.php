@@ -18,6 +18,7 @@ class AuthController extends Controller
 {
     public function __construct(private readonly AuditLogger $audit) {}
 
+    /** Create a customer account and log in. */
     public function register(RegisterRequest $request): JsonResponse
     {
         $user = User::create($request->validated());
@@ -31,6 +32,11 @@ class AuthController extends Controller
         return (new UserResource($user->load('roles')))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
+    /**
+     * Log in.
+     *
+     * Starts a cookie session; fetch `/sanctum/csrf-cookie` first (see "Logging in"). A wrong email and a wrong password get the same answer, so the API never reveals which addresses have an account.
+     */
     public function login(LoginRequest $request): UserResource
     {
         $request->authenticate();
@@ -45,6 +51,7 @@ class AuthController extends Controller
         return new UserResource($user->load('roles'));
     }
 
+    /** Log out. */
     public function logout(Request $request): Response
     {
         $this->audit->log('auth.logout', $request->user());
@@ -56,6 +63,7 @@ class AuthController extends Controller
         return response()->noContent();
     }
 
+    /** The logged-in user, with their roles and permissions. */
     public function me(Request $request): UserResource
     {
         return new UserResource($request->user()->load('roles'));

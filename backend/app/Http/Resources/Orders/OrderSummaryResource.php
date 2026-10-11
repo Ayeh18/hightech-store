@@ -7,7 +7,11 @@ use App\Models\OrderItem;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** One row of "My orders". Requires `items` to be loaded. @mixin Order */
+/**
+ * One row of "My orders". Requires `items` to be loaded.
+ *
+ * @mixin Order
+ */
 class OrderSummaryResource extends JsonResource
 {
     /** @return array<string, mixed> */

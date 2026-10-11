@@ -11,7 +11,11 @@ use Illuminate\Validation\Rule;
 /** The admin dashboard. The route requires the reports.view permission. */
 class DashboardController extends Controller
 {
-    /** `?days=7|30|90` (default 30): the period the cards, charts and top lists cover. */
+    /**
+     * The dashboard's numbers for a period.
+     *
+     * `?days=7|30|90` (default 30): the period the cards, charts and top lists cover.
+     */
     public function show(Request $request, DashboardService $dashboard): JsonResponse
     {
         $days = (int) ($request->validate(['days' => ['nullable', Rule::in([7, 30, 90])]])['days'] ?? 30);

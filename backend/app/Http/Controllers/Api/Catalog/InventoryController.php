@@ -12,6 +12,11 @@ class InventoryController extends Controller
 {
     public function __construct(private readonly InventoryService $inventory) {}
 
+    /**
+     * Adjust a product's stock.
+     *
+     * Add to or take from a product's stock, with a reason. Every change is kept in the product's stock history.
+     */
     public function adjust(AdjustInventoryRequest $request, Product $product): JsonResponse
     {
         $inventory = $this->inventory->adjust(

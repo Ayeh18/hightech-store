@@ -9,7 +9,11 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
 
-/** A full order. Requires Order::DETAIL_RELATIONS to be loaded. @mixin Order */
+/**
+ * A full order. Requires Order::DETAIL_RELATIONS to be loaded.
+ *
+ * @mixin Order
+ */
 class OrderResource extends JsonResource
 {
     /** @return array<string, mixed> */
@@ -37,6 +41,7 @@ class OrderResource extends JsonResource
             ],
             'notes' => $this->notes,
             'lines' => $this->lines(),
+            /** @var bool */
             'can_cancel' => $this->status->isCancellableByCustomer() && $this->isUnpaid(),
             'can_pay' => $this->canBePaid(),
             // The newest payment attempt (payments are loaded newest first), so the page knows what to show and whether to wait.

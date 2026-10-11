@@ -17,6 +17,7 @@ class BrandController extends Controller
 {
     public function __construct(private readonly TaxonomyService $taxonomy) {}
 
+    /** List brands. */
     public function index(): AnonymousResourceCollection
     {
         return BrandResource::collection(
@@ -27,6 +28,7 @@ class BrandController extends Controller
         );
     }
 
+    /** Create a brand. */
     public function store(BrandRequest $request): JsonResponse
     {
         $brand = $this->taxonomy->createBrand($request->validated(), $request->user());
@@ -34,11 +36,13 @@ class BrandController extends Controller
         return (new BrandResource($brand))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
+    /** Change a brand. */
     public function update(BrandRequest $request, Brand $brand): BrandResource
     {
         return new BrandResource($this->taxonomy->updateBrand($brand, $request->validated(), $request->user()));
     }
 
+    /** Delete a brand. */
     public function destroy(Request $request, Brand $brand): Response
     {
         $this->taxonomy->deleteBrand($brand, $request->user());

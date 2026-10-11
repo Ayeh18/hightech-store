@@ -40,7 +40,7 @@ class SpecDefinitionRequest extends FormRequest
         }
 
         return $shared + [
-            'key' => ['required', 'string', 'max:64', 'regex:/^[a-z][a-z0-9_]*$/', Rule::unique('spec_definitions', 'key')->where('category_id', $category->id)],
+            'key' => ['required', 'string', 'max:64', 'regex:/^[a-z][a-z0-9_]*$/', Rule::unique('spec_definitions', 'key')->where('category_id', $category?->id)],
             'type' => ['required', Rule::enum(SpecType::class)],
         ];
     }

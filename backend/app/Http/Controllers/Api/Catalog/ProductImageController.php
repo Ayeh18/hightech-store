@@ -16,6 +16,11 @@ class ProductImageController extends Controller
 {
     public function __construct(private readonly ProductImageService $images) {}
 
+    /**
+     * Upload a product photo.
+     *
+     * Upload a photo for a product. It is re-saved as WebP under a random name.
+     */
     public function store(StoreProductImageRequest $request, Product $product): JsonResponse
     {
         $image = $this->images->store(
@@ -29,6 +34,7 @@ class ProductImageController extends Controller
         return (new ProductImageResource($image))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
+    /** Delete a product photo. */
     public function destroy(Request $request, Product $product, ProductImage $image): Response
     {
         // Never delete an image through another product's URL.

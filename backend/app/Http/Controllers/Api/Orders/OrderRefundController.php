@@ -13,7 +13,11 @@ use Illuminate\Support\Facades\Gate;
 
 class OrderRefundController extends Controller
 {
-    /** "I want my money back". Nothing is paid out until staff review it. Returns the updated order. */
+    /**
+     * Ask for a refund on a delivered order.
+     *
+     * "I want my money back". Nothing is paid out until staff review it. Returns the updated order.
+     */
     public function store(RefundRequestRequest $request, Order $order, RefundService $refunds): JsonResponse
     {
         Gate::authorize('requestRefund', $order);

@@ -6,7 +6,11 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** A user as admins see them. Needs `roles`; `orders_count` is added when it was counted. @mixin User */
+/**
+ * A user as admins see them. Needs `roles`; `orders_count` is added when it was counted.
+ *
+ * @mixin User
+ */
 class AdminUserResource extends JsonResource
 {
     /** @return array<string, mixed> */
