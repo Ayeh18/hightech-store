@@ -21,7 +21,7 @@ class ProductListResource extends JsonResource
         $values = $this->specValues();
         $definitions = $this->category->specDefinitions;
         $inventory = $this->inventory;
-        $available = $inventory?->available ?? 0;
+        $available = $inventory->available ?? 0;
 
         return [
             'id' => $this->id,
@@ -45,10 +45,10 @@ class ProductListResource extends JsonResource
             'low_stock' => $inventory?->isLowStock() ?? false,
             // Exact quantities are only included for staff who manage inventory.
             'inventory' => $this->when((bool) $request->user('sanctum')?->can('inventory.manage'), fn () => [
-                'stock' => $inventory?->stock ?? 0,
-                'reserved' => $inventory?->reserved ?? 0,
+                'stock' => $inventory->stock ?? 0,
+                'reserved' => $inventory->reserved ?? 0,
                 'available' => $available,
-                'low_stock_threshold' => $inventory?->low_stock_threshold ?? 0,
+                'low_stock_threshold' => $inventory->low_stock_threshold ?? 0,
             ]),
         ];
     }

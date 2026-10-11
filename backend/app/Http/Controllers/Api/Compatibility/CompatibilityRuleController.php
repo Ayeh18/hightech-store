@@ -33,7 +33,7 @@ class CompatibilityRuleController extends Controller
      */
     public function update(UpdateCompatibilityRuleRequest $request, string $key, AuditLogger $audit): CompatibilityRuleResource
     {
-        abort_unless($this->registry->get($key), 404);
+        abort_unless($this->registry->get($key) !== null, 404);
 
         $row = CompatibilityRule::firstOrNew(['key' => $key]);
         $current = $this->compatibility->rules()->settings($key);

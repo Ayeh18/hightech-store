@@ -24,11 +24,13 @@ class Category extends Model
         ];
     }
 
+    /** @return HasMany<Product, $this> */
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
     }
 
+    /** @return HasMany<SpecDefinition, $this> */
     public function specDefinitions(): HasMany
     {
         return $this->hasMany(SpecDefinition::class)->orderBy('sort_order')->orderBy('id');

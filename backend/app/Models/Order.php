@@ -44,41 +44,49 @@ class Order extends Model
         ];
     }
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /** @return HasMany<OrderItem, $this> */
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class)->orderBy('id');
     }
 
+    /** @return BelongsTo<Coupon, $this> */
     public function coupon(): BelongsTo
     {
         return $this->belongsTo(Coupon::class);
     }
 
+    /** @return HasOne<CouponUsage, $this> */
     public function couponUsage(): HasOne
     {
         return $this->hasOne(CouponUsage::class);
     }
 
+    /** @return HasOne<Shipment, $this> */
     public function shipment(): HasOne
     {
         return $this->hasOne(Shipment::class);
     }
 
+    /** @return HasMany<OrderStatusHistory, $this> */
     public function statusHistory(): HasMany
     {
         return $this->hasMany(OrderStatusHistory::class)->orderBy('id');
     }
 
+    /** @return HasMany<Refund, $this> */
     public function refunds(): HasMany
     {
         return $this->hasMany(Refund::class)->latest('created_at')->latest('id');
     }
 
+    /** @return HasMany<Payment, $this> */
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class)->latest('created_at')->latest('id');

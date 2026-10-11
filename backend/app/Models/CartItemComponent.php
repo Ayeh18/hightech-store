@@ -16,11 +16,13 @@ class CartItemComponent extends Model
         return ['slot' => BuilderSlot::class, 'unit_price' => MoneyCast::class];
     }
 
+    /** @return BelongsTo<CartItem, $this> */
     public function item(): BelongsTo
     {
         return $this->belongsTo(CartItem::class, 'cart_item_id');
     }
 
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class)->withTrashed();

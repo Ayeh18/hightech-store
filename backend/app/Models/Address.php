@@ -19,6 +19,7 @@ class Address extends Model
         return ['is_default' => 'boolean'];
     }
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

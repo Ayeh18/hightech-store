@@ -58,14 +58,14 @@ class CartService
             }
 
             $existing = $cart->items()->where('kind', CartItemKind::Product->value)->where('product_id', $product->id)->first();
-            $newQuantity = ($existing?->quantity ?? 0) + $quantity;
+            $newQuantity = ($existing->quantity ?? 0) + $quantity;
 
             if ($existing === null) {
                 $this->ensureRoomForAnotherLine($cart);
             }
 
             $this->ensureQuantityAllowed($newQuantity, self::MAX_PRODUCT_QUANTITY, $product->name);
-            $this->ensureStock($cart, $product, $newQuantity - ($existing?->quantity ?? 0));
+            $this->ensureStock($cart, $product, $newQuantity - ($existing->quantity ?? 0));
 
             // The customer has just seen this product's current price, so that is the price to compare against later.
             $attributes = ['quantity' => $newQuantity, 'price_when_added' => $product->effective_price];
@@ -202,7 +202,7 @@ class CartService
             return;
         }
 
-        $available = Inventory::where('product_id', $product->id)->first()?->available ?? 0;
+        $available = Inventory::where('product_id', $product->id)->first()->available ?? 0;
         $inCart = $this->unitsInCart($cart, $product->id);
 
         if ($inCart + $extraUnits <= $available) {

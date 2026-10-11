@@ -33,7 +33,7 @@ class PartSuggester
     public function suggest(BuilderSlot $slot, ProductFilters $filters, array $selected, bool $includeIncompatible, int $page): PartSuggestions
     {
         $category = Category::active()->where('builder_slot', $slot->value)->first();
-        $filters = $filters->withCategory($category?->slug ?? '__none__');
+        $filters = $filters->withCategory($category->slug ?? '__none__');
         $others = $this->contextWithout($slot, $selected);
         $quantity = max(1, (int) ($selected[$slot->value]['qty'] ?? 1));
 

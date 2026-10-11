@@ -18,6 +18,7 @@
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
+        "larastan/larastan": "^3.13",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
         "laravel/pint": "^1.27",
@@ -77,6 +78,9 @@
         "docs": [
             "@putenv APP_NAME=PC Custom Store",
             "@php artisan scramble:export --path=openapi.json"
+        ],
+        "analyse": [
+            "@php vendor/bin/phpstan analyse --memory-limit=1G"
         ]
     },
     "extra": {
@@ -96,6 +100,7 @@
     "minimum-stability": "stable",
     "prefer-stable": true,
     "scripts-descriptions": {
-        "docs": "Rewrite openapi.json, the published copy of the API reference, from the code."
+        "docs": "Rewrite openapi.json, the published copy of the API reference, from the code.",
+        "analyse": "Static analysis: look for type mistakes without running the code."
     }
 }

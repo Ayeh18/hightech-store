@@ -29,7 +29,7 @@ class StockReservation
         $short = [];
 
         foreach ($demand as $productId => $units) {
-            $available = $rows->get($productId)?->available ?? 0;
+            $available = $rows->get($productId)->available ?? 0;
 
             if ($available < $units) {
                 $short[$productId] = $available;

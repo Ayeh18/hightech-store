@@ -14,6 +14,7 @@ class ProductSpecification extends Model
         return ['value_json' => 'array'];
     }
 
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

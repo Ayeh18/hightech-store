@@ -18,6 +18,7 @@ class PaymentTransaction extends Model
         return ['type' => PaymentTransactionType::class, 'payload' => 'array'];
     }
 
+    /** @return BelongsTo<Payment, $this> */
     public function payment(): BelongsTo
     {
         return $this->belongsTo(Payment::class);

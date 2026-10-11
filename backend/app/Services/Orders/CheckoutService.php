@@ -60,7 +60,7 @@ class CheckoutService
             }
         }
 
-        $discount = $application?->discount ?? Money::zero();
+        $discount = $application->discount ?? Money::zero();
         $afterDiscount = $subtotal->subtract($discount);
         $shipping = $address ? $this->shipping->cost($address->state, $afterDiscount) : null;
 
@@ -120,7 +120,7 @@ class CheckoutService
                 $application = $couponCode !== null && trim($couponCode) !== ''
                     ? $this->coupons->apply($couponCode, $user, $subtotal, lock: true)
                     : null;
-                $discount = $application?->discount ?? Money::zero();
+                $discount = $application->discount ?? Money::zero();
                 $shipping = $this->shipping->cost($address->state, $subtotal->subtract($discount));
 
                 $items = $this->orderItems($evaluated);

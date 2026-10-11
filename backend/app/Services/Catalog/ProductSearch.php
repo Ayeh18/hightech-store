@@ -6,9 +6,9 @@ use App\Enums\SpecType;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\SpecDefinition;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
  * Builds the product list query: search, filters, sorting and pagination.
@@ -18,6 +18,7 @@ class ProductSearch
 {
     /**
      * @param  bool  $includeHidden  admin view: drafts, archived products and inactive categories too
+     * @return LengthAwarePaginator<int, Product>
      */
     public function paginate(ProductFilters $filters, bool $includeHidden = false): LengthAwarePaginator
     {

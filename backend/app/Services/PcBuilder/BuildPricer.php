@@ -100,7 +100,7 @@ class BuildPricer
             $unit = $product->effective_price;
             $line = $unit->multiply($quantity);
             $subtotal = $subtotal->add($line);
-            $available = $product->inventory?->available ?? 0;
+            $available = $product->inventory->available ?? 0;
 
             if ($available <= 0) {
                 $issues[] = new BuildIssue('out_of_stock', BuildIssue::ERROR, "{$product->name} is out of stock.", $slot);

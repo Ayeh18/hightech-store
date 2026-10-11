@@ -28,6 +28,7 @@ class Coupon extends Model
         ];
     }
 
+    /** @return HasMany<CouponUsage, $this> */
     public function usages(): HasMany
     {
         return $this->hasMany(CouponUsage::class);

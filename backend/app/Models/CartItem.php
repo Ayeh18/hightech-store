@@ -22,22 +22,29 @@ class CartItem extends Model
         return ['kind' => CartItemKind::class, 'price_when_added' => MoneyCast::class];
     }
 
+    /** @return BelongsTo<Cart, $this> */
     public function cart(): BelongsTo
     {
         return $this->belongsTo(Cart::class);
     }
 
-    /** Includes soft-deleted products, so the cart can still say "this product was withdrawn". */
+    /**
+     * Includes soft-deleted products, so the cart can still say "this product was withdrawn".
+     *
+     * @return BelongsTo<Product, $this>
+     */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class)->withTrashed();
     }
 
+    /** @return BelongsTo<PcBuild, $this> */
     public function build(): BelongsTo
     {
         return $this->belongsTo(PcBuild::class, 'pc_build_id');
     }
 
+    /** @return HasMany<CartItemComponent, $this> */
     public function components(): HasMany
     {
         return $this->hasMany(CartItemComponent::class)->orderBy('id');

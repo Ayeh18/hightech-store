@@ -1,0 +1,13 @@
+# Static analysis: reads the code for mistakes without running it (a method that does not exist, a value of the wrong type,
+# code that can never run). Run it with `composer analyse`. Larastan teaches PHPStan how Laravel works.
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+    # 0 is the loosest and 10 the strictest. 5 checks the types passed to every method. The code is clean at this level;
+    # raising it further mostly asks for more detailed array types in comments.
+    level: 5
+    # Read each model's casts() method, so that a column cast to an enum, a date or Money is known as that type.
+    parseModelCastsMethod: true

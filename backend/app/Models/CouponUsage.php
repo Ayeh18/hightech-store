@@ -15,11 +15,13 @@ class CouponUsage extends Model
         return ['discount_amount' => MoneyCast::class, 'released_at' => 'datetime'];
     }
 
+    /** @return BelongsTo<Coupon, $this> */
     public function coupon(): BelongsTo
     {
         return $this->belongsTo(Coupon::class);
     }
 
+    /** @return BelongsTo<Order, $this> */
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);

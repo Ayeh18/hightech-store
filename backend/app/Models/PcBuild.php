@@ -16,11 +16,13 @@ class PcBuild extends Model
     /** @use HasFactory<PcBuildFactory> */
     use HasFactory, HasUlids;
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /** @return HasMany<PcBuildItem, $this> */
     public function items(): HasMany
     {
         return $this->hasMany(PcBuildItem::class, 'pc_build_id');

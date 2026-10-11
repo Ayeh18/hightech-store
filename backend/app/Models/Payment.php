@@ -34,16 +34,19 @@ class Payment extends Model
         ];
     }
 
+    /** @return BelongsTo<Order, $this> */
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
     }
 
+    /** @return HasMany<PaymentTransaction, $this> */
     public function transactions(): HasMany
     {
         return $this->hasMany(PaymentTransaction::class)->orderBy('id');
     }
 
+    /** @return HasMany<Refund, $this> */
     public function refunds(): HasMany
     {
         return $this->hasMany(Refund::class)->latest('created_at')->latest('id');

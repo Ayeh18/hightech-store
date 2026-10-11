@@ -20,12 +20,17 @@ class PcBuildItem extends Model
         return ['slot' => BuilderSlot::class];
     }
 
+    /** @return BelongsTo<PcBuild, $this> */
     public function build(): BelongsTo
     {
         return $this->belongsTo(PcBuild::class, 'pc_build_id');
     }
 
-    /** Includes soft-deleted products, so a saved build can still say which part is no longer sold. */
+    /**
+     * Includes soft-deleted products, so a saved build can still say which part is no longer sold.
+     *
+     * @return BelongsTo<Product, $this>
+     */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class)->withTrashed();

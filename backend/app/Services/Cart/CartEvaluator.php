@@ -161,7 +161,7 @@ class CartEvaluator
             return [new BuildIssue('product_unavailable', BuildIssue::ERROR, "{$product->name} is no longer available.", $slot)];
         }
 
-        $available = $product->inventory?->available ?? 0;
+        $available = $product->inventory->available ?? 0;
         $needed = $demand[$product->id] ?? 0;
 
         if ($available <= 0) {

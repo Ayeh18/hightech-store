@@ -14,6 +14,7 @@ class Brand extends Model
     /** @use HasFactory<BrandFactory> */
     use HasFactory;
 
+    /** @return HasMany<Product, $this> */
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);

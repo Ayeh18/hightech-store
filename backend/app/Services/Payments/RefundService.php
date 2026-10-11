@@ -434,7 +434,7 @@ class RefundService
     {
         $history = $order->statusHistory()->where('to_status', OrderStatus::RefundRequested->value)->latest('id')->first();
 
-        return $history?->from_status ?? OrderStatus::Paid;
+        return $history->from_status ?? OrderStatus::Paid;
     }
 
     /** @return array<int, int> product id => units */

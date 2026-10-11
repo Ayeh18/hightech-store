@@ -25,9 +25,9 @@ class CompatibilityService
             $entries[$key] = [
                 'rule' => $rule,
                 'settings' => new RuleSettings(
-                    enabled: $row?->is_enabled ?? true,
+                    enabled: $row->is_enabled ?? true,
                     severity: in_array($severity, [CompatibilityIssue::ERROR, CompatibilityIssue::WARNING], true) ? $severity : $rule->defaultSeverity(),
-                    params: array_merge($rule->defaultParams(), $row?->params ?? []),
+                    params: array_merge($rule->defaultParams(), $row->params ?? []),
                 ),
             ];
         }

@@ -89,7 +89,13 @@ class TaxonomyService
         });
     }
 
-    /** @param  array<string, mixed>  $data */
+    /**
+     * @template TModel of Model
+     *
+     * @param  TModel  $model
+     * @param  array<string, mixed>  $data
+     * @return TModel
+     */
     private function update(Model $model, array $data, User $actor, string $action): Model
     {
         $model->fill($data);

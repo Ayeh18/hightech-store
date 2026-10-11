@@ -25,7 +25,8 @@ class MoneyCast implements CastsAttributes
             return null;
         }
 
-        if (! $value instanceof Money) {
+        // The declared type is only a promise; this is the check at run time (someone assigning a plain number).
+        if (! $value instanceof Money) { // @phpstan-ignore instanceof.alwaysTrue
             throw new InvalidArgumentException("{$key} must be set with a Money instance.");
         }
 

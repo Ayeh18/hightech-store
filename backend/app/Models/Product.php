@@ -33,26 +33,31 @@ class Product extends Model
         ];
     }
 
+    /** @return BelongsTo<Category, $this> */
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
 
+    /** @return BelongsTo<Brand, $this> */
     public function brand(): BelongsTo
     {
         return $this->belongsTo(Brand::class);
     }
 
+    /** @return HasMany<ProductImage, $this> */
     public function images(): HasMany
     {
         return $this->hasMany(ProductImage::class)->orderByDesc('is_primary')->orderBy('sort_order');
     }
 
+    /** @return HasMany<ProductSpecification, $this> */
     public function specifications(): HasMany
     {
         return $this->hasMany(ProductSpecification::class);
     }
 
+    /** @return HasOne<Inventory, $this> */
     public function inventory(): HasOne
     {
         return $this->hasOne(Inventory::class);
