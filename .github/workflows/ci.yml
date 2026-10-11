@@ -1,0 +1,189 @@
+# Runs on every push and pull request: nothing reaches the main branch, or a server, without passing these checks.
+# Each job is the same set of commands the README lists for running the checks by hand.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch makes the older run pointless: stop it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (style, static analysis, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # A real PostgreSQL, the same major version as development and production. The tests need it: they rely on row
+    # locks, CHECK constraints and partial indexes that a lighter database would not enforce.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: pc_store_testing
+          POSTGRES_USER: pc_store
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pc_store -d pc_store_testing"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    # Real environment variables win over backend/.env. phpunit.xml already forces the database NAME to pc_store_testing.
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: pc_store
+      DB_PASSWORD: ci-only-password
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_pgsql, pgsql, bcmath, intl, gd, zip, pcntl
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer/files
+          key: composer-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install PHP packages
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Prepare the app (an .env and an encryption key)
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Code style (Pint)
+        run: vendor/bin/pint --test
+
+      - name: Static analysis (PHPStan)
+        run: composer analyse
+
+      # Includes the checks that the API reference matches real answers and that backend/openapi.json is up to date,
+      # and the concurrency tests, which race real checkouts in separate processes.
+      - name: Tests (Pest)
+        run: vendor/bin/pest
+
+  frontend:
+    name: Frontend (lint, format, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # "ci" installs exactly what package-lock.json says and fails if it disagrees with package.json.
+      - run: npm ci
+      - name: Lint (ESLint)
+        run: npm run lint
+      - name: Formatting (Prettier)
+        run: npm run format:check
+      - name: Tests (Vitest)
+        run: npm test
+      - name: Production build
+        run: npm run build
+
+  image:
+    name: Production image (builds, starts, answers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build the API image
+        run: docker build -t hightech-api:ci backend
+
+      # The image is what a host actually runs, so prove more than "it builds": start it against an empty database
+      # with the settings a host would give it, and check that it migrated, set itself up and serves the shop.
+      - name: Start it against an empty database
+        run: |
+          docker network create ci
+          docker run -d --name db --network ci -e POSTGRES_DB=shop -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=ci-only-password postgres:17-alpine
+          until docker exec db pg_isready -U shop -d shop; do sleep 1; done
+          docker run -d --name api --network ci -p 8080:8080 \
+            -e APP_ENV=staging -e APP_DEBUG=false \
+            -e APP_KEY="base64:$(head -c 32 /dev/urandom | base64)" \
+            -e APP_URL=http://localhost:8080 -e FRONTEND_URL=http://localhost:8080 \
+            -e DB_CONNECTION=pgsql -e DB_URL=postgresql://shop:ci-only-password@db:5432/shop \
+            -e LOG_CHANNEL=stderr -e PAYMENT_PROVIDER=fake -e PAYMENT_WEBHOOK_SECRET=ci-only-secret -e MAIL_MAILER=log \
+            -e ADMIN_EMAIL=owner@example.com -e ADMIN_PASSWORD=ci-only-admin-password -e SEED_DEMO_CATALOG=true \
+            hightech-api:ci
+
+      - name: Wait for it to answer
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/up > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "The container never became healthy." >&2
+          exit 1
+
+      - name: Check what it serves
+        run: |
+          set -e
+          curl -fsS "http://localhost:8080/api/products?per_page=1" | grep -q '"sku"'          # the demo catalog is there
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/.env)" = 403        # hidden files are not served
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/orders -H 'Accept: application/json')" = 401
+          curl -sI http://localhost:8080/api/products | grep -qi '^x-content-type-options: nosniff'
+          if curl -sI http://localhost:8080/api/products | grep -qi '^x-powered-by'; then        # no PHP version on show
+            echo "The X-Powered-By header is being sent." >&2
+            exit 1
+          fi
+          curl -fsS http://localhost:8080/docs/api.json | grep -q '"openapi"'                    # the API reference is served
+
+      - name: Show the container's log if anything failed
+        if: failure()
+        run: docker logs api || true
+
+  # Optional. Render and Netlify can deploy every push by themselves; to deploy ONLY what passed the checks above, turn
+  # their automatic deploys off, create a "deploy hook" on each, and save the two addresses as repository secrets
+  # (docs/hosting-free.md, part 10). Without the secrets this job does nothing.
+  deploy:
+    name: Deploy (only main, only after every check passed)
+    needs: [backend, frontend, image]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+      NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
+
+    steps:
+      - name: Tell Render to deploy the API
+        if: env.RENDER_DEPLOY_HOOK_URL != ''
+        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL" > /dev/null
+
+      - name: Tell Netlify to build the website
+        if: env.NETLIFY_BUILD_HOOK_URL != ''
+        run: curl -fsS -X POST "$NETLIFY_BUILD_HOOK_URL" > /dev/null
+
+      - name: Nothing to do
+        if: env.RENDER_DEPLOY_HOOK_URL == '' && env.NETLIFY_BUILD_HOOK_URL == ''
+        run: echo "No deploy hooks are configured, so this job did nothing. See docs/hosting-free.md, part 10."

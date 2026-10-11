@@ -1,0 +1,36 @@
+# Looks up every package the project uses against the public lists of known security problems. It runs on its own
+# schedule rather than on every push: a problem announced today in an old package is news about the project, not about
+# whatever change somebody happens to be making, and it should not block that change.
+name: Dependency audit
+
+on:
+  schedule:
+    - cron: '0 2 * * 1' # every Monday, 02:00 UTC
+  workflow_dispatch: # and whenever someone presses "Run workflow"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: none
+
+      - name: PHP packages
+        working-directory: backend
+        run: composer audit --locked
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: JavaScript packages
+        working-directory: frontend
+        run: npm audit --audit-level=high
