@@ -27,7 +27,7 @@ COPY . .
 
 RUN composer dump-autoload --no-dev --optimize --classmap-authoritative --no-interaction \
     && php artisan package:discover --ansi \
-    && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
+    && mkdir -p storage/app/public storage/app/private storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache
 
 COPY deploy/nginx.conf.template /etc/nginx/nginx.conf.template

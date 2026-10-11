@@ -6,6 +6,9 @@
 vendor
 node_modules
 tests
+# Uploaded photos and private files belong to the machine they were uploaded on, never to the image.
+storage/app/public/*
+storage/app/private/*
 storage/logs/*
 storage/framework/cache/*
 storage/framework/sessions/*
