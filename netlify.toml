@@ -10,6 +10,36 @@
   NODE_VERSION = "22"
 
 # ---------------------------------------------------------------------------------------------------------------------------
+# Headers that tell the browser what these pages may do. They apply to the pages and files Netlify serves itself; answers
+# forwarded from the API carry the API's own headers (backend/app/Http/Middleware/SecurityHeaders.php).
+#
+# Content-Security-Policy is a list of the ONLY places each kind of thing may come from. If an attacker ever managed to slip a
+# <script> into a page, the browser would refuse to run it, because scripts may only come from this site's own files.
+#   script-src 'self'            scripts: only this site's own files (no inline scripts, no other sites)
+#   style-src ... googleapis     stylesheets: this site, and Google Fonts (no inline styles are needed: Vue sets them from code)
+#   font-src ... gstatic         the font files those stylesheets point to
+#   img-src ... https:           pictures: this site, and the photo bucket (any https address, so the storage company can change)
+#   connect-src 'self'           the app may call only this site's own /api
+#   frame-ancestors 'none'       no other site may show the shop inside a frame (clickjacking)
+# ---------------------------------------------------------------------------------------------------------------------------
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), geolocation=(), microphone=(), payment=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+
+# Built files have a fingerprint in their name (index-uhmPCzrt.js) that changes whenever their content does, so a browser may
+# keep them for a year. The page itself (index.html) is never cached this way, so a new deploy is picked up at once.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# ---------------------------------------------------------------------------------------------------------------------------
 # Forward API calls to the API server, so the browser only ever talks to THIS site (same address = login cookies just work,
 # exactly as with the Vite dev server on your own computer). "status = 200" makes it a forward, not a redirect.
 #
