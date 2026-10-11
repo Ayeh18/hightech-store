@@ -49,6 +49,16 @@ export function shopDate(daysAgo = 0) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(now)
 }
 
+/** What is wrong with a report period ("2026-10-01" to "2026-10-20"), or '' when it can be asked for. */
+export function periodProblem(from, to) {
+  if (!from || !to) return 'Choose both dates.'
+
+  return from > to ? 'The start date must not be after the end date.' : ''
+}
+
+/** 33.3 -> "33.3%". The API sends null when there is nothing to take a percentage of: that is shown as a dash. */
+export const percent = (value) => (value === null || value === undefined ? '—' : `${number(value)}%`)
+
 /** "order.status_changed" -> "Order status changed" */
 export const humanizeAction = (action) => {
   const words = action.replaceAll('.', ' ').replaceAll('_', ' ')

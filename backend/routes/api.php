@@ -82,6 +82,7 @@ Route::middleware(['auth:sanctum', 'can:admin.access'])->prefix('admin')->group(
         Route::get('dashboard', [DashboardController::class, 'show']);
         Route::get('reports/sales', [ReportController::class, 'sales']);
         Route::get('reports/sales/export', [ReportController::class, 'export'])->middleware('throttle:20,1,admin-report-export');
+        Route::get('reports/insights', [ReportController::class, 'insights']);
     });
 
     // Every payment and its diary. Declared AFTER payments/needing-refund above, so that fixed address is matched first.

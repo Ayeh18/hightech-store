@@ -5,6 +5,7 @@ export const ADMIN_NAV = [
     items: [
       { label: 'Dashboard', to: '/admin/dashboard', permission: 'reports.view' },
       { label: 'Sales reports', to: '/admin/reports', permission: 'reports.view' },
+      { label: 'Insights', to: '/admin/insights', permission: 'reports.view' },
     ],
   },
   {

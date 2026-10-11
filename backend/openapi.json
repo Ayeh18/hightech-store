@@ -2671,6 +2671,30 @@
                 "tags": [
                     "Admin: reports"
                 ],
+                "parameters": [
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "required": true,
+                        "description": "The first day of the period, as the shop counts days (Malaysian time).",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "example": "2026-10-01"
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "required": true,
+                        "description": "The last day of the period, included. At most a year after `from`.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "example": "2026-10-31"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "",
@@ -2841,6 +2865,33 @@
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "description": "The dates are missing, not dates, in the wrong order, or more than a year apart.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -2852,6 +2903,30 @@
                 "summary": "Download the sales report as CSV",
                 "tags": [
                     "Admin: reports"
+                ],
+                "parameters": [
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "required": true,
+                        "description": "The first day of the period, as the shop counts days (Malaysian time).",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "example": "2026-10-01"
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "required": true,
+                        "description": "The last day of the period, included. At most a year after `from`.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "example": "2026-10-31"
+                    }
                 ],
                 "responses": {
                     "200": {
@@ -2882,6 +2957,33 @@
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
                     },
+                    "422": {
+                        "description": "The dates are missing, not dates, in the wrong order, or more than a year apart.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "429": {
                         "description": "Too many requests. The `Retry-After` header says how many seconds to wait.",
                         "content": {
@@ -2891,6 +2993,595 @@
                                     "properties": {
                                         "message": {
                                             "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/reports/insights": {
+            "get": {
+                "operationId": "report.insights",
+                "description": "Who is buying, where orders are lost, how payments go, how much is sold as whole PCs, and how the build\nsuggestions are used. Counts and sums only: no customer is named. Percentages are numbers from 0 to 100 with at\nmost one decimal place, or `null` when there is nothing to take a percentage of.\n\n**Permission:** `reports.view`",
+                "summary": "Insights for a period",
+                "tags": [
+                    "Admin: reports"
+                ],
+                "parameters": [
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "required": true,
+                        "description": "The first day of the period, as the shop counts days (Malaysian time).",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "example": "2026-10-01"
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "required": true,
+                        "description": "The last day of the period, included. At most a year after `from`.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "example": "2026-10-31"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "period": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "from": {
+                                                            "type": "string"
+                                                        },
+                                                        "to": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "from",
+                                                        "to"
+                                                    ]
+                                                },
+                                                "customers": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "buyers": {
+                                                            "type": "integer",
+                                                            "description": "People who paid for at least one order in the period."
+                                                        },
+                                                        "new": {
+                                                            "type": "integer",
+                                                            "description": "Buyers whose first paid order was in this period."
+                                                        },
+                                                        "returning": {
+                                                            "type": "integer",
+                                                            "description": "Buyers who had already paid for an order before the period started."
+                                                        },
+                                                        "returning_rate": {
+                                                            "type": [
+                                                                "number",
+                                                                "null"
+                                                            ],
+                                                            "description": "Returning buyers as a percentage of all buyers. Null when nobody bought."
+                                                        },
+                                                        "orders": {
+                                                            "type": "integer",
+                                                            "description": "Orders paid in the period."
+                                                        },
+                                                        "orders_per_buyer": {
+                                                            "type": [
+                                                                "number",
+                                                                "null"
+                                                            ],
+                                                            "description": "Null when nobody bought."
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "buyers",
+                                                        "new",
+                                                        "returning",
+                                                        "returning_rate",
+                                                        "orders",
+                                                        "orders_per_buyer"
+                                                    ]
+                                                },
+                                                "checkout": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "placed": {
+                                                            "type": "integer",
+                                                            "description": "Orders created in the period."
+                                                        },
+                                                        "paid": {
+                                                            "type": "integer",
+                                                            "description": "Of those, the ones the customer paid for (counted even if the order was refunded later)."
+                                                        },
+                                                        "awaiting_payment": {
+                                                            "type": "integer",
+                                                            "description": "Of those, the ones still waiting for their payment."
+                                                        },
+                                                        "cancelled_unpaid": {
+                                                            "type": "integer",
+                                                            "description": "Of those, the ones cancelled without being paid: by the customer, by staff, or because time ran out."
+                                                        },
+                                                        "paid_rate": {
+                                                            "type": [
+                                                                "number",
+                                                                "null"
+                                                            ],
+                                                            "description": "Paid orders as a percentage of placed orders. Null when none were placed."
+                                                        },
+                                                        "with_coupon": {
+                                                            "type": "integer",
+                                                            "description": "Paid orders that used a coupon."
+                                                        },
+                                                        "discount_given": {
+                                                            "description": "What coupons took off the paid orders.",
+                                                            "$ref": "#/components/schemas/Money"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "placed",
+                                                        "paid",
+                                                        "awaiting_payment",
+                                                        "cancelled_unpaid",
+                                                        "paid_rate",
+                                                        "with_coupon",
+                                                        "discount_given"
+                                                    ]
+                                                },
+                                                "payments": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "attempts": {
+                                                            "type": "integer"
+                                                        },
+                                                        "paid": {
+                                                            "type": "integer"
+                                                        },
+                                                        "failed": {
+                                                            "type": "integer"
+                                                        },
+                                                        "cancelled": {
+                                                            "type": "integer",
+                                                            "description": "The customer left the payment page, or the order was cancelled first."
+                                                        },
+                                                        "open": {
+                                                            "type": "integer",
+                                                            "description": "Not finished yet."
+                                                        },
+                                                        "success_rate": {
+                                                            "type": [
+                                                                "number",
+                                                                "null"
+                                                            ],
+                                                            "description": "Paid attempts as a percentage of the finished ones. Null when none has finished."
+                                                        },
+                                                        "failure_reasons": {
+                                                            "type": "array",
+                                                            "description": "Why attempts failed, most common first, in the payment company's words.",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "reason": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "attempts": {
+                                                                        "type": "integer"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "reason",
+                                                                    "attempts"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "methods": {
+                                                            "type": "array",
+                                                            "description": "How people paid (the paid attempts only), most money first.",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "method": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "payments": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "amount": {
+                                                                        "$ref": "#/components/schemas/Money"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "method",
+                                                                    "payments",
+                                                                    "amount"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "attempts",
+                                                        "paid",
+                                                        "failed",
+                                                        "cancelled",
+                                                        "open",
+                                                        "success_rate",
+                                                        "failure_reasons",
+                                                        "methods"
+                                                    ]
+                                                },
+                                                "pcs": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "sold": {
+                                                            "type": "integer",
+                                                            "description": "PCs sold from the builder. Two of the same build in one order count as two."
+                                                        },
+                                                        "revenue": {
+                                                            "$ref": "#/components/schemas/Money"
+                                                        },
+                                                        "average_price": {
+                                                            "description": "Whole sen, rounded down.",
+                                                            "$ref": "#/components/schemas/Money"
+                                                        },
+                                                        "single_items": {
+                                                            "type": "object",
+                                                            "description": "Everything sold on its own, not as part of a PC.",
+                                                            "properties": {
+                                                                "units": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "revenue": {
+                                                                    "$ref": "#/components/schemas/Money"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "units",
+                                                                "revenue"
+                                                            ]
+                                                        },
+                                                        "revenue_share": {
+                                                            "type": [
+                                                                "number",
+                                                                "null"
+                                                            ],
+                                                            "description": "The PCs' percentage of everything sold, by value. Null when nothing was sold."
+                                                        },
+                                                        "popular_parts": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "slot": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "slot_label": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "pcs": {
+                                                                        "type": "integer",
+                                                                        "description": "How many of the PCs sold had this product."
+                                                                    },
+                                                                    "share": {
+                                                                        "type": [
+                                                                            "number",
+                                                                            "null"
+                                                                        ],
+                                                                        "description": "As a percentage of the PCs sold."
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "slot",
+                                                                    "slot_label",
+                                                                    "id",
+                                                                    "name",
+                                                                    "pcs",
+                                                                    "share"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "pairings": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "cpu": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "gpu": {
+                                                                        "type": [
+                                                                            "string",
+                                                                            "null"
+                                                                        ]
+                                                                    },
+                                                                    "pcs": {
+                                                                        "type": "integer"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "cpu",
+                                                                    "gpu",
+                                                                    "pcs"
+                                                                ]
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "sold",
+                                                        "revenue",
+                                                        "average_price",
+                                                        "single_items",
+                                                        "revenue_share",
+                                                        "popular_parts",
+                                                        "pairings"
+                                                    ]
+                                                },
+                                                "suggestions": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "asked": {
+                                                            "type": "integer",
+                                                            "description": "Builds suggested."
+                                                        },
+                                                        "accepted": {
+                                                            "type": "integer",
+                                                            "description": "Of those, the ones the customer loaded into the builder."
+                                                        },
+                                                        "acceptance_rate": {
+                                                            "type": [
+                                                                "number",
+                                                                "null"
+                                                            ],
+                                                            "description": "Accepted suggestions as a percentage of all suggestions. Null when none was made."
+                                                        },
+                                                        "average_budget": {
+                                                            "description": "Whole sen. Zero when no suggestion was made.",
+                                                            "$ref": "#/components/schemas/Money"
+                                                        },
+                                                        "by_purpose": {
+                                                            "type": "array",
+                                                            "description": "Every purpose a customer can choose, in the order of the form, including those nobody chose.",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "purpose": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "label": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "asked": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "accepted": {
+                                                                        "type": "integer"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "purpose",
+                                                                    "label",
+                                                                    "asked",
+                                                                    "accepted"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "by_budget": {
+                                                            "type": "array",
+                                                            "description": "What customers said they want to spend.",
+                                                            "prefixItems": [
+                                                                {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "label": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "asked": {
+                                                                            "type": "integer"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "label",
+                                                                        "asked"
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "label": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "asked": {
+                                                                            "type": "integer"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "label",
+                                                                        "asked"
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "label": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "asked": {
+                                                                            "type": "integer"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "label",
+                                                                        "asked"
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "label": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "asked": {
+                                                                            "type": "integer"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "label",
+                                                                        "asked"
+                                                                    ]
+                                                                }
+                                                            ],
+                                                            "minItems": 4,
+                                                            "maxItems": 4
+                                                        },
+                                                        "ai": {
+                                                            "type": "object",
+                                                            "description": "Only when the shop is set up to ask an AI first (RECOMMENDER_DRIVER=ai). Otherwise all zeros.",
+                                                            "properties": {
+                                                                "asked": {
+                                                                    "type": "integer",
+                                                                    "description": "Suggestions for which the AI was asked."
+                                                                },
+                                                                "used": {
+                                                                    "type": "integer",
+                                                                    "description": "The AI's build passed the shop's checks and was shown."
+                                                                },
+                                                                "fell_back": {
+                                                                    "type": "integer",
+                                                                    "description": "The AI's build was not usable, so the shop's own rules chose instead."
+                                                                },
+                                                                "reasons": {
+                                                                    "type": "array",
+                                                                    "description": "Why, most common first. `kind` is a short code such as `service_error` or `over_budget`; `label` says it in words.",
+                                                                    "items": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "kind": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "label": {
+                                                                                "anyOf": [
+                                                                                    {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    {
+                                                                                        "type": "string",
+                                                                                        "enum": [
+                                                                                            "The AI service was not set up",
+                                                                                            "The AI service could not be reached",
+                                                                                            "The AI service answered with an error",
+                                                                                            "The day's allowance of AI requests was used up",
+                                                                                            "Its answer could not be read",
+                                                                                            "It chose a product it was not offered",
+                                                                                            "It left out a part every PC needs",
+                                                                                            "Its parts did not work together",
+                                                                                            "Its PC could not have been used",
+                                                                                            "Its build cost more than the budget",
+                                                                                            "The budget was below the cheapest PC",
+                                                                                            "Another reason"
+                                                                                        ]
+                                                                                    }
+                                                                                ]
+                                                                            },
+                                                                            "times": {
+                                                                                "type": "integer"
+                                                                            }
+                                                                        },
+                                                                        "required": [
+                                                                            "kind",
+                                                                            "label",
+                                                                            "times"
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "asked",
+                                                                "used",
+                                                                "fell_back",
+                                                                "reasons"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "asked",
+                                                        "accepted",
+                                                        "acceptance_rate",
+                                                        "average_budget",
+                                                        "by_purpose",
+                                                        "by_budget",
+                                                        "ai"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "period",
+                                                "customers",
+                                                "checkout",
+                                                "payments",
+                                                "pcs",
+                                                "suggestions"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "description": "The dates are missing, not dates, in the wrong order, or more than a year apart.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
                                         }
                                     },
                                     "required": [

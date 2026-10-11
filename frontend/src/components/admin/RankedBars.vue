@@ -8,6 +8,8 @@ const props = defineProps({
 })
 
 const max = computed(() => Math.max(1, ...props.rows.map((r) => r.value)))
+// A small value still gets a sliver of bar; zero gets none.
+const width = (value) => (value > 0 ? Math.max(2, (value / max.value) * 100) : 0)
 </script>
 
 <template>
@@ -19,7 +21,7 @@ const max = computed(() => Math.max(1, ...props.rows.map((r) => r.value)))
         <span class="shrink-0 tabular-nums">{{ row.text }}</span>
       </div>
       <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-elevated" aria-hidden="true">
-        <div class="h-full rounded-full bg-accent/80" :style="{ width: `${Math.max(2, (row.value / max) * 100)}%` }" />
+        <div class="h-full rounded-full bg-accent/80" :style="{ width: `${width(row.value)}%` }" />
       </div>
       <p v-if="row.detail" class="mt-0.5 text-xs text-muted">{{ row.detail }}</p>
     </li>

@@ -7,6 +7,7 @@ use App\Enums\PaymentStatus;
 use App\Enums\RefundStatus;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -141,7 +142,8 @@ class SalesReport
             ->all();
     }
 
-    private function soldItems(CarbonImmutable $from, CarbonImmutable $to)
+    /** The order items sold in the period, as "i" (their orders as "o"), for the callers to group and sum. Insights uses it too. */
+    public function soldItems(CarbonImmutable $from, CarbonImmutable $to): Builder
     {
         ['start' => $start, 'end' => $end] = $this->bounds($from, $to);
 

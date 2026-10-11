@@ -1,12 +1,12 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import AdminPage from '@/components/admin/AdminPage.vue'
+import PeriodForm from '@/components/admin/PeriodForm.vue'
 import StatCard from '@/components/admin/StatCard.vue'
 import AlertMessage from '@/components/ui/AlertMessage.vue'
-import BaseButton from '@/components/ui/BaseButton.vue'
 import { api } from '@/lib/api'
 import { firstError } from '@/lib/errors'
-import { number, shopDate, shortDay } from '@/lib/format'
+import { number, periodProblem, shopDate, shortDay } from '@/lib/format'
 
 /*
  * Sales for any period. "Net sales" is money received minus money refunded, counted on the day it happened, in Malaysian time.
@@ -18,13 +18,7 @@ const report = ref(null)
 const loading = ref(false)
 const error = ref('')
 
-const problem = computed(() =>
-  !from.value || !to.value
-    ? 'Choose both dates.'
-    : from.value > to.value
-      ? 'The start date must not be after the end date.'
-      : '',
-)
+const problem = computed(() => periodProblem(from.value, to.value))
 const csvUrl = computed(
   () => `/api/admin/reports/sales/export?${new URLSearchParams({ from: from.value, to: to.value })}`,
 )
@@ -45,49 +39,12 @@ async function run() {
   }
 }
 
-function lastDays(days) {
-  from.value = shopDate(days - 1)
-  to.value = shopDate(0)
-  run()
-}
-
 onMounted(run)
 </script>
 
 <template>
   <AdminPage title="Sales reports" subtitle="Pick a period. Up to a year at a time.">
-    <form class="mb-4 flex flex-wrap items-end gap-3" @submit.prevent="run">
-      <div>
-        <label for="report-from" class="mb-1.5 block text-sm font-medium">From</label>
-        <input
-          id="report-from"
-          v-model="from"
-          type="date"
-          class="rounded-xl border border-line bg-bg px-3 py-2.5 text-sm focus:border-accent focus:outline-none"
-        />
-      </div>
-      <div>
-        <label for="report-to" class="mb-1.5 block text-sm font-medium">To</label>
-        <input
-          id="report-to"
-          v-model="to"
-          type="date"
-          class="rounded-xl border border-line bg-bg px-3 py-2.5 text-sm focus:border-accent focus:outline-none"
-        />
-      </div>
-      <BaseButton type="submit" :loading="loading">Show report</BaseButton>
-      <div class="flex gap-1 text-sm">
-        <button
-          v-for="days in [7, 30, 90]"
-          :key="days"
-          type="button"
-          class="rounded-lg px-2.5 py-2 text-muted hover:bg-elevated hover:text-ink"
-          @click="lastDays(days)"
-        >
-          Last {{ days }} days
-        </button>
-      </div>
-    </form>
+    <PeriodForm v-model:from="from" v-model:to="to" :loading="loading" @submit="run" />
 
     <AlertMessage v-if="error" class="mb-4">{{ error }}</AlertMessage>
 

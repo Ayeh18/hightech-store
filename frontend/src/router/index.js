@@ -162,6 +162,12 @@ const routes = [
     meta: admin('reports.view'),
   },
   {
+    path: '/admin/insights',
+    name: 'admin-insights',
+    component: () => import('@/pages/admin/Insights.vue'),
+    meta: admin('reports.view'),
+  },
+  {
     path: '/admin/audit',
     name: 'admin-audit',
     component: () => import('@/pages/admin/AuditLogs.vue'),
@@ -206,6 +212,7 @@ const TITLES = {
   'admin-users': `Users · Admin · ${SITE}`,
   'admin-catalog': `Brands & categories · Admin · ${SITE}`,
   'admin-reports': `Sales reports · Admin · ${SITE}`,
+  'admin-insights': `Insights · Admin · ${SITE}`,
   'admin-audit': `Audit log · Admin · ${SITE}`,
   'admin-orders': `Orders · Admin · ${SITE}`,
   'admin-refunds': `Refunds · Admin · ${SITE}`,

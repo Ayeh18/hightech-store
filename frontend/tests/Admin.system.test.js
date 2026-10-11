@@ -975,6 +975,7 @@ describe('the admin menu', () => {
     expect(menu).toEqual([
       'Dashboard',
       'Sales reports',
+      'Insights',
       'Orders',
       'Refunds',
       'Payments',
@@ -995,6 +996,7 @@ describe('the admin menu', () => {
     expect(menu).toEqual([
       'Dashboard',
       'Sales reports',
+      'Insights',
       'Orders',
       'Products',
       'Brands & categories',

@@ -2,9 +2,11 @@
 
 use App\Enums\BuilderSlot;
 use App\Models\Brand;
+use App\Models\BuildRecommendation;
 use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Support\Money;
 use Dedoc\Scramble\Generator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
@@ -228,6 +230,46 @@ it('describes the admin area as it really is', function () {
     $ref->check($this->actingAs(shopper())->getJson('/api/admin/orders'), 'GET', '/admin/orders', 403);
 
     expect($ref->problems)->toBe([]);
+});
+
+it('describes the insights with every list filled in', function () {
+    $ref = againstReference();
+    $admin = withRole('admin');
+    $today = now(config('shop.timezone'))->toDateString();
+
+    // A PC with a graphics card and a single item, paid for on the second attempt.
+    $customer = shopper();
+    $card = specPart(BuilderSlot::Gpu, ['length_mm' => 300, 'tdp_watts' => 200, 'recommended_psu_watts' => 650], 150000);
+    addPc($customer, [...compatiblePc(), 'gpu' => $card])->assertCreated();
+    $order = unpaidOrder($customer);
+    payFor($order)->assertCreated();
+    auth()->forgetGuards();
+    sendWebhook(webhookBody(paymentOf($order), 'payment.failed', data: ['failure_reason' => 'Card declined']))->assertOk();
+    payFor($order)->assertCreated();
+    auth()->forgetGuards();
+    gatewayPays(paymentOf($order))->assertOk();
+    // A PC that runs on the processor's own graphics: a pairing with no graphics card.
+    $second = shopper();
+    addPc($second, compatiblePc())->assertCreated();
+    paidOrder($second, []);
+    // A suggestion the AI could not make.
+    BuildRecommendation::forceCreate([
+        'budget' => Money::fromSen(400000), 'purpose' => 'gaming', 'priority' => 'balanced', 'resolution' => '1080p', 'source' => 'rules',
+        'fallback_reason' => 'The AI service answered with an error (429).', 'fallback_kind' => 'service_error', 'total' => Money::fromSen(390000), 'selection' => ['cpu' => 1],
+    ]);
+
+    $answer = $ref->check($this->actingAs($admin)->getJson("/api/admin/reports/insights?from={$today}&to={$today}"), 'GET', '/admin/reports/insights', 200);
+    $ref->check($this->actingAs($admin)->getJson('/api/admin/reports/insights'), 'GET', '/admin/reports/insights', 422);
+    $ref->check($this->actingAs($admin)->getJson('/api/admin/reports/insights?from=2020-01-01&to=2026-01-01'), 'GET', '/admin/reports/insights', 422);
+    $ref->check($this->actingAs($admin)->getJson('/api/admin/reports/sales?from=2020-01-01&to=2026-01-01'), 'GET', '/admin/reports/sales', 422);
+
+    // The check is only worth something if the lists it checked had rows in them.
+    expect($ref->problems)->toBe([])
+        ->and($answer->json('data.payments.failure_reasons'))->not->toBeEmpty()
+        ->and($answer->json('data.payments.methods'))->not->toBeEmpty()
+        ->and($answer->json('data.pcs.popular_parts'))->not->toBeEmpty()
+        ->and(array_column($answer->json('data.pcs.pairings'), 'gpu'))->toContain(null)
+        ->and($answer->json('data.suggestions.ai.reasons'))->not->toBeEmpty();
 });
 
 it('describes managing the catalog as it really is', function () {
