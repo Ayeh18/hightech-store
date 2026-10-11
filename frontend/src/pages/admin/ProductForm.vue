@@ -86,10 +86,10 @@ async function fill(p) {
     status: p.status,
     price: senToInput(p.price.amount),
     discount_price: p.discount_price ? senToInput(p.discount_price.amount) : '',
-    weight_grams: p.weight_grams ?? '',
-    warranty_months: p.warranty_months ?? '',
+    weight_grams: String(p.weight_grams ?? ''),
+    warranty_months: String(p.warranty_months ?? ''),
     warranty_info: p.warranty_info ?? '',
-    low_stock_threshold: p.inventory?.low_stock_threshold ?? '',
+    low_stock_threshold: String(p.inventory?.low_stock_threshold ?? ''),
   })
   const existing = Object.fromEntries(
     (p.specifications ?? []).map((s) => [s.key, Array.isArray(s.value) ? s.value : String(s.value)]),

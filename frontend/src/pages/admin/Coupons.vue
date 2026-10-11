@@ -71,8 +71,9 @@ function openEdit(coupon) {
     max_discount: coupon.max_discount_amount ? senToInput(coupon.max_discount_amount.amount) : '',
     starts_at: toShopInput(coupon.starts_at),
     ends_at: toShopInput(coupon.ends_at),
-    usage_limit: coupon.usage_limit ?? '',
-    per_user_limit: coupon.per_user_limit ?? '',
+    // Text, like everything else a person types into the form.
+    usage_limit: String(coupon.usage_limit ?? ''),
+    per_user_limit: String(coupon.per_user_limit ?? ''),
     is_active: coupon.is_active,
   })
   errors.value = {}
