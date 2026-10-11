@@ -17,7 +17,7 @@ itself off. Netlify's own parser reads `netlify.toml` as intended.
 **What could not be tested from here** is the hosted services themselves: the dashboards of Supabase, Render and Netlify
 (a button may be labelled slightly differently when you get there), Supabase's "session pooler" address that Render connects
 through, and the forwarding from Netlify to Render. Those run for real only when you deploy; part 11 covers what to do if
-one of them complains.
+one of them complains. The optional AI in part 14 was tested against a stand-in, not a real AI company's service.
 
 ## 1. The big picture
 
@@ -402,3 +402,68 @@ It needs the `AWS_...` variables in that computer's `backend/.env`. When it repo
   works differently there (a small function), so the guide above is the straightforward one.
 - If you would rather never wait for a sleeping API, a small paid server (a few US dollars a month) removes the sleeping, the lost
   photos and most of the limits. Everything in `backend/` (the image) works there unchanged.
+
+## 14. Build suggestions by AI (optional)
+
+"Suggest a build for me" in the PC builder already works on your deployment: the store's own rules choose the parts,
+for free, with nothing to set up. This part is only for when you would like an AI to do the choosing. Skip it and
+nothing is missing.
+
+**How it behaves.** The AI is asked first. Whatever it answers is checked by the shop exactly like a customer's own
+build: real products, in stock, compatible, and within the budget at the shop's prices. If the answer cannot be used, or
+the AI service is slow, down or over its free allowance, the store's rules answer instead, so the customer always gets
+a build. The AI is sent the budget, the purpose and a list of products. It is never sent anything about a customer.
+
+### With Groq (free, no card)
+
+1. Create an account at [console.groq.com](https://console.groq.com). Under **API Keys**, create a key and copy it: it is
+   shown only once.
+2. Choose a model from [their list](https://console.groq.com/docs/models). It must support "JSON mode" (the model's page
+   says so). In October 2026 the list included `openai/gpt-oss-120b` (larger, better choices) and `openai/gpt-oss-20b`
+   (smaller, faster). Names change, so copy the name exactly as the list shows it.
+3. In Render, open your service, go to **Environment** and add:
+
+   | Key | Value |
+   |---|---|
+   | `RECOMMENDER_DRIVER` | `ai` |
+   | `AI_API_KEY` | the key from step 1 |
+   | `AI_MODEL` | the model's name from step 2 |
+   | `AI_DAILY_LIMIT` | `40` (explained below) |
+
+4. Save. Render restarts the API. Open the PC builder and press **Suggest a build for me**. A new box, "Games you
+   play", shows that the AI is switched on, and a result chosen by it is labelled "Chosen by AI, checked by the store".
+
+The key is a password. Put it only in Render's Environment (or in `backend/.env` on your own computer), never in the
+code and never in a message or a screenshot.
+
+### What the free allowance means
+
+Free AI plans limit **tokens** (pieces of words) per minute and per day, not only requests. One suggestion sends the
+shop's shortlist of up to 64 products, which is roughly 4,000 to 5,000 tokens with the answer. Published figures for
+Groq's free plan in October 2026 are about 8,000 tokens a minute and 200,000 a day for a large model, and 6,000 a minute
+and 500,000 a day for a small one. That works out at **about one AI suggestion a minute, and around 40 a day on a large
+model or 100 on a small one**. Your own account's **Limits** page shows the real numbers; they change.
+
+Going over is harmless: Groq answers "too many requests" and the store's rules choose that build. `AI_DAILY_LIMIT` just
+stops the shop asking once the day's allowance is probably gone, so set it a little under what your plan allows. The
+same question (same budget, purpose and catalog) is answered from memory for an hour and uses no allowance.
+
+### Seeing how it is doing
+
+In the admin area, open **Insights** and look at "Build suggestions". It shows how many suggestions the AI was asked
+for, how many of its builds were used, and why the store's rules took over for the others: the build cost more than the
+budget, its parts did not fit together, the service answered with an error, and so on. If every suggestion says "Its
+answer could not be read", the model probably does not support JSON mode: choose another.
+
+### Other services, and switching it off
+
+Any service that speaks the "OpenAI chat completions" format works: add `AI_BASE_URL` with the address its
+documentation gives (OpenRouter's is `https://openrouter.ai/api/v1`), and use its key and model name. A paid service is
+set up the same way. To go back to the store's rules, set `RECOMMENDER_DRIVER` to `rules` or delete it.
+
+**What was tested.** The AI path was tested by playing the AI service: inside the test suite, and over real HTTP
+against a stand-in server made to answer well, invent a product, choose parts that clash, answer in plain prose, fail
+and time out. Each time the customer got a valid build. It was **not** run against Groq itself, which needs an account.
+Your first suggestion after step 4 is that test.
+
+Sources: [Groq's rate limits](https://console.groq.com/docs/rate-limits), [free AI services compared](https://openrouter.ai/blog/tutorials/free-llm-apis-compared/), [Groq's free plan](https://eesel.ai/blog/groq-pricing).

@@ -57,6 +57,7 @@ transaction and returns the order that `OrderResource` turns into JSON.
 | **An order has two statuses**: what is happening to the goods, and what happened to the money | "Paid but not shipped" and "shipped but refunded" are both real; one column cannot say both | `OrderStatus`, `PaymentStatus` |
 | **Every allowed status change is listed**; anything else is refused | A cancelled order can never become shipped by accident | `OrderStatus::nextStatuses()` |
 | **Stock is reserved by the order, not by the cart**, under row locks taken in a fixed order | A cart can sit for weeks. Locks stop two buyers taking the last unit; the fixed order stops two checkouts deadlocking | `StockReservation` |
+| **A recommender proposes, the shop decides.** A build suggested by the rules or by an AI is only a list of product ids until the shop has priced and checked it | An AI can invent a product, misquote a price or ignore a socket. Passing its answer through the same checks as any customer's build makes that harmless | `RecommendationService`, `BuildEvaluator` |
 | **An order line copies the name, SKU and price** | An order must still say what was bought, and for how much, after the product changes or is deleted | `order_items` |
 | **The shop talks to an interface, not to a payment company** | Changing company means writing one class; checkout, refunds and reconciliation do not change | `Contracts/PaymentGateway.php` |
 | **Only a signed webhook marks an order paid** | The page a customer returns to proves nothing: the address can be typed by hand | `PaymentWebhookController`, `PaymentProcessor` |
@@ -111,6 +112,8 @@ fast, since an ordinary index cannot help a search that starts with a wildcard. 
 | Can a request be repeated? | Checkout takes an idempotency key; webhooks and refunds are idempotent by design |
 | What does an error reveal? | `{ "message": ... }` and nothing else, in every mode. An unexpected failure is logged, not shown |
 | What may a browser do with an answer? | `nosniff`, no framing, a referrer and a permissions policy, HSTS over https, a deny-all content policy on API answers and a strict one (no `unsafe-*`) on the website. Only the shop's own site may read API answers from a browser |
+| What may an AI decide? | Nothing. It is sent the brief and a list of products, never anything about a customer; its answer is checked as above; its words are shown as plain text; a daily allowance and a timeout bound what it can cost |
+| Who can see a shared build? | Whoever has its link: a 40-character random token, switched off by the owner at any time. The page names neither the owner nor the build's id |
 | Who did what? | An append-only audit log, with passwords, tokens and secrets stripped before writing |
 | Secrets | Only in `.env` files that git ignores, or in the host's settings. The fake gateway refuses to run in production |
 

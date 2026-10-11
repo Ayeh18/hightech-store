@@ -12,6 +12,7 @@ never the protection.
 |---|---|---|
 | Dashboard | `reports.view` | Cards (sales, orders, pending payments, products, low stock, customers), sales and orders over time, top products, revenue by category, recent orders, low-stock products, recent and failed payments |
 | Sales reports | `reports.view` | Any period up to a year, day by day, what sold, by category, and a **CSV download** |
+| Insights | `reports.view` | Who is buying, where orders are lost, how payments go, whole PCs against single items, and how build suggestions are used ([below](#insights)) |
 | Orders / Refunds | `orders.manage` / `refunds.manage` | Pack, ship, deliver, cancel and refund; the refund queue |
 | Payments | `payments.view` | Every payment attempt and its **diary** (every step, never edited) |
 | Reconciliation | `payments.view` | Our books against the payment company's ([details](payments-and-refunds.md#payment-reconciliation)) |
@@ -27,6 +28,22 @@ Staff (`orders.manage`, catalog, stock, reports) cannot see payments, refunds, u
 **What "sales" means.** *Net sales* = money received minus money refunded, each counted on the day it happened, in
 **Malaysian time** (`SHOP_TIMEZONE`, default `Asia/Kuala_Lumpur`): an order paid at 1 am on the 20th belongs to the 20th,
 even though it is still the 19th in UTC. A payment that arrived too late for its order is held for a refund and is not a sale.
+
+### Insights
+
+The sales report says how much was sold. Insights is for the questions behind it, over any period up to a year, in the
+same Malaysian days. Every figure is a count or a sum; no customer is named.
+
+| Section | What it counts | Worth knowing |
+|---|---|---|
+| Customers | The people behind the orders **paid** in the period: how many, how many were buying for the first time, how many had bought before | An order cancelled or refunded afterwards does not make someone a buyer |
+| From order to payment | What became of the orders **placed** in the period: paid, still waiting, or cancelled unpaid; and how many paid orders used a coupon | An order paid and refunded later still counts as paid here: the customer did pay |
+| Payments | Every **attempt** to pay that started in the period, how it ended, why the failed ones failed and how people paid | An order paid on the second try is two attempts. The success rate is of the attempts that have finished |
+| PCs from the builder | PCs sold against items sold on their own, the products chosen most for each slot, and the processor and graphics card pairs sold most | Amounts are the items' own prices, before coupons and shipping |
+| Build suggestions | How often "Suggest a build for me" was used, what for, with what budget, and how many suggestions were loaded into the builder | With an AI switched on: how often its build was used and, by kind of reason, why the store's rules took over |
+
+A percentage that cannot be worked out (the share of returning buyers when nobody bought) is shown as a dash, not as 0%.
+Insights does not yet follow a suggestion through to a purchase: "loaded into the builder" is as far as it sees.
 
 **Typing money and times.** Admins type ringgit (`1,599.00`) and percentages (`12.5`); the browser turns them into whole sen
 and basis points from the digits as text, never through floating-point, so `19.99` can never become `1998.9999`. Coupon
@@ -63,6 +80,7 @@ refund is **approved or declined**. People who hold `inventory.manage` are email
 |---|---|
 | `GET dashboard?days=7\|30\|90` | `reports.view` |
 | `GET reports/sales?from&to` · `GET reports/sales/export?from&to` (CSV) | `reports.view` |
+| `GET reports/insights?from&to` | `reports.view` |
 | `GET payments` · `GET payments/{id}` | `payments.view` |
 | `GET reconciliation?from&to` · `POST payments/{id}/sync` | `payments.view` |
 | `GET users` · `GET users/{id}` · `PUT users/{id}/roles` · `PUT users/{id}/status` | `users.manage` |

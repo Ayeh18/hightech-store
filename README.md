@@ -16,6 +16,9 @@ payments and permissions. A few things worth looking at first:
   wrong amounts each have a defined, tested outcome.
 - **Compatibility is a rule engine, not a pile of `if`s.** Sixteen small rules that an admin can switch off or tune
   without a deployment.
+- **A suggested PC is only a proposal until the shop has checked it.** The shop's own rules, or optionally an AI, pick
+  parts for a budget. Either way the result is priced and judged by the same code as any other build, so an AI cannot
+  invent a product, a price or a part that does not fit.
 - **The API reference is generated from the code and then tested against real answers**, so it cannot be out of date
   and cannot be wrong without a test failing.
 
@@ -23,6 +26,8 @@ payments and permissions. A few things worth looking at first:
 |---|---|
 | ![Catalog with filters generated from each category's specifications](docs/screenshots/catalog.png) | ![Payment reconciliation: the shop's records against the payment company's](docs/screenshots/admin-reconciliation.png) |
 | The catalog. Every filter comes from the database | Reconciliation, catching a payment that disagrees |
+| ![A PC suggested for a RM 4,500 budget, with a reason for each part](docs/screenshots/suggestion.png) | ![Admin insights: buyers, what became of orders, and how payments went](docs/screenshots/admin-insights.png) |
+| "Suggest a build for me": a PC for a budget, with reasons | Insights for the people running the shop |
 | ![Home page](docs/screenshots/home.png) | ![The generated API reference](docs/screenshots/api-reference.png) |
 | Home | The API reference |
 
@@ -30,7 +35,7 @@ payments and permissions. A few things worth looking at first:
 
 - [Features](#features) · [Technology](#technology) · [Architecture](#architecture) · [Database design](#database-design)
 - [Getting started](#getting-started) · [API documentation](#api-documentation) · [Tests and quality checks](#tests-and-quality-checks)
-- [Payment architecture](#payment-architecture) · [Webhook architecture](#webhook-architecture) · [PC compatibility architecture](#pc-compatibility-architecture)
+- [Payment architecture](#payment-architecture) · [Webhook architecture](#webhook-architecture) · [PC compatibility architecture](#pc-compatibility-architecture) · [Build suggestions](#build-suggestions)
 - [Security](#security) · [Deployment](#deployment) · [Project layout](#project-layout) · [Future improvements](#future-improvements)
 
 ## Features
@@ -49,6 +54,10 @@ payments and permissions. A few things worth looking at first:
 - Live verdict (compatible, warnings, incompatible) with the reason for each problem, estimated power draw and a
   recommended power supply.
 - Save, rename, copy and buy builds. A saved build stores which parts, never prices, so it is never stale.
+- **Suggest a build for me**: give a budget and what the PC is for, and get a complete PC from the catalog with a
+  reason for each part. Chosen by the shop's own rules, or by an AI service if one is switched on.
+- **Share a build by link**: anyone with the link sees the parts at today's prices and can load a copy into their own
+  builder. The owner can switch the link off.
 
 **Payments**
 - A payment layer that talks to an interface, with a built-in simulator ("FakePay") that behaves like a real gateway:
@@ -58,6 +67,8 @@ payments and permissions. A few things worth looking at first:
 
 **Admin**
 - Dashboard and sales reports with CSV export, in the shop's own time zone.
+- Insights: new and returning buyers, what became of the orders placed, how payment attempts ended and why they failed,
+  whole PCs against single items, the parts chosen most, and how build suggestions are used.
 - Orders and fulfilment, refunds, payments with their full history, products and stock, brands, categories and their
   specifications, compatibility rules, coupons, users and roles, and a read-only audit log.
 - Two staff levels by permission: staff run the shop day to day; only admins move money or manage people.
@@ -123,6 +134,7 @@ erDiagram
     roles }o--o{ permissions : "permission_role"
     users ||--o| carts : "owns"
     users ||--o{ pc_builds : "saves"
+    users ||--o{ build_recommendations : "is suggested"
     users ||--o{ orders : "places"
 
     categories ||--o{ products : "contains"
@@ -187,7 +199,7 @@ refuses to overwrite existing ones. Neither is committed.
 | File | For | Notable settings |
 |---|---|---|
 | `.env` | Docker Compose | Ports (`APP_PORT`, `FRONTEND_PORT`, `DB_FORWARD_PORT`, `MAILPIT_PORT`), database name, user and password |
-| `backend/.env` | Laravel | `APP_URL`, `FRONTEND_URL`, `DB_*`, `SANCTUM_STATEFUL_DOMAINS`, `PAYMENT_PROVIDER`, `PAYMENT_WEBHOOK_SECRET`, `SHOP_TIMEZONE`, `IMAGE_DISK`, mail |
+| `backend/.env` | Laravel | `APP_URL`, `FRONTEND_URL`, `DB_*`, `SANCTUM_STATEFUL_DOMAINS`, `PAYMENT_PROVIDER`, `PAYMENT_WEBHOOK_SECRET`, `SHOP_TIMEZONE`, `IMAGE_DISK`, `RECOMMENDER_DRIVER` (and `AI_*` when it is `ai`), mail |
 
 If a port is already taken on your computer, change it in `.env` and run `docker compose up -d` again.
 
@@ -235,15 +247,16 @@ order's emails appear in Mailpit.
 ## API documentation
 
 The reference is at **http://localhost:8000/docs/api** while the app runs, and in the repository as
-[`backend/openapi.json`](backend/openapi.json) (OpenAPI 3.1, ready for Postman or any other tool). It covers 87
+[`backend/openapi.json`](backend/openapi.json) (OpenAPI 3.1, ready for Postman or any other tool). It covers 94
 operations in 11 groups. For each one: the address and method, whether a login and which permission it needs, its rate
 limit, the request body with its limits, every answer with its shape, and the errors it can return. An introduction
 covers logging in, the money format, the error shape, paging, idempotent checkout and webhook signatures.
 
 It is **generated from the code** (routes, validation rules, response classes) by Scramble, so it cannot be forgotten.
-It is also **tested against real answers**: `backend/tests/Feature/ApiDocs` calls about 70 endpoints and fails if an
-answer is missing a documented field, has a different type, contains an undocumented field, or uses a status the
-reference does not list. Another test fails if `openapi.json` is out of date. After changing the API:
+It is also **tested against real answers**: `backend/tests/Feature/ApiDocs` makes about 90 calls to 64 of the
+operations and fails if an answer is missing a documented field, has a different type, contains an undocumented field,
+or uses a status the reference does not list. Another test fails if `openapi.json` is out of date. After changing the
+API:
 
 ```bash
 docker compose exec app composer docs
@@ -252,10 +265,10 @@ docker compose exec app composer docs
 ## Tests and quality checks
 
 ```bash
-docker compose exec app ./vendor/bin/pest            # 759 backend tests, on the pc_store_testing database
+docker compose exec app ./vendor/bin/pest            # 870 backend tests, on the pc_store_testing database
 docker compose exec app composer analyse             # static analysis: PHPStan level 5
 docker compose exec app ./vendor/bin/pint --test     # PHP code style
-docker compose exec frontend npm test                # 405 front-end tests
+docker compose exec frontend npm test                # 452 front-end tests
 docker compose exec frontend npm run lint            # ESLint
 docker compose exec frontend npm run format:check    # Prettier
 docker compose exec frontend npm run build           # the production build
@@ -351,6 +364,39 @@ all). `CompatibilityService` runs the enabled ones and returns a verdict: **comp
 
 [More in docs/catalog-and-pc-builder.md](docs/catalog-and-pc-builder.md#compatibility-engine).
 
+## Build suggestions
+
+```mermaid
+flowchart LR
+    Q["The brief<br/>budget, purpose, screen, priority"] --> K["Candidates<br/>on sale and in stock,<br/>read from the database"]
+    K --> AI["An AI service<br/>optional, asked first"]
+    K --> R["The shop's own rules<br/>always available"]
+    AI -->|"a proposal:<br/>product ids"| V{"The shop's checks"}
+    R -->|"a proposal:<br/>product ids"| V
+    V -->|"passes"| OK["Shown to the customer,<br/>priced by the shop"]
+    V -.->|"the AI's proposal fails"| R
+```
+
+"Suggest a build for me" turns a budget and a purpose into a complete PC. Whatever chooses the parts only **proposes**
+a list of product ids; the shop then checks the proposal like any build a customer puts together.
+
+- **The rules always work.** They split the budget by purpose (a gaming PC spends most on the graphics card, an office
+  PC uses the processor's built-in graphics), pick the best part each share buys, and trade parts up or down until the
+  build fits. No account, no cost, and the same answer every time for the same catalog.
+- **An AI is optional.** With `RECOMMENDER_DRIVER=ai` an AI service is asked first, through the common "OpenAI chat
+  completions" format, so the service can be changed with three settings. It is sent the brief and a shortlist of real
+  products. It is never sent anything about a customer.
+- **Neither is trusted.** Every product must be one that was offered; the build must be complete, in stock and
+  compatible according to `BuildEvaluator` (the code behind the builder, the cart and checkout); and the total at the
+  shop's prices must be within the budget. A price the AI states is never read.
+- **The customer always gets an answer.** If the AI is slow, down, over its allowance, or proposes something that fails
+  a check, the rules answer instead. Why the AI was not used is recorded by kind, and shown to admins in Insights.
+
+The AI path is tested by playing the AI service (in the test suite, and over real HTTP against a stand-in that answers
+well, invents products, picks clashing parts, answers in prose, fails and times out). It has not been run against a
+real AI company's service, which needs an account.
+[More in docs/catalog-and-pc-builder.md](docs/catalog-and-pc-builder.md#build-suggestions).
+
 ## Security
 
 - Login is an `httpOnly` session cookie with CSRF protection; login and registration are rate limited.
@@ -360,6 +406,9 @@ all). `CompatibilityService` runs the enabled ones and returns a verdict: **comp
 - Every error is `{ "message": ... }` and nothing else, whatever the debug setting.
 - Security headers on the API and the website, including a content policy with no `unsafe-*` allowances, verified in a
   real browser across the whole site. Only the shop's own website may read API answers from a browser.
+- A shared build is found only by a 40-character random token, names neither its owner nor its id, and can be
+  switched off by the owner.
+- An AI service, when one is switched on, receives products and a budget, never customer data, and decides nothing.
 - An append-only audit log of who did what, with secrets stripped.
 
 The full list is in [docs/architecture.md](docs/architecture.md#security).
@@ -373,7 +422,7 @@ repeat. The front end is a static build (`npm run build`) for any static host.
 
 **[docs/hosting-free.md](docs/hosting-free.md)** is a step-by-step guide to a free public demo: the website on
 Netlify, the API on Render, and the database and product photos on Supabase. It covers the limits of each free plan and
-what to do when something goes wrong.
+what to do when something goes wrong, and how to switch on AI build suggestions with a free service (optional).
 
 Two things a real shop needs that this repository does not include: a **real payment gateway** (FakePay refuses to run
 in production) and a **mail service** (the default writes emails to the log).
@@ -383,7 +432,7 @@ in production) and a **mail service** (the default writes emails to the log).
 ```
 backend/                  the Laravel API
   app/Http/               controllers, form requests, resources, middleware
-  app/Services/           the business rules: Cart, Catalog, Compatibility, Orders, Payments, PcBuilder, Reports
+  app/Services/           the business rules: Cart, Catalog, Compatibility, Orders, Payments, PcBuilder, Recommendations, Reports
   app/Models/  app/Enums/ app/Policies/  app/Notifications/
   database/               migrations, factories, seeders
   tests/                  Unit, Feature, Concurrency
@@ -404,9 +453,11 @@ Not built, in rough order of value:
 
 - **A real payment gateway** (Stripe, Billplz or toyyibPay) as a second implementation of the interface, and refunds
   that are confirmed later by webhook.
-- **AI build recommendations**: describe a budget and a purpose, and get a build chosen from the real catalog and
-  passed through the same compatibility and pricing checks before it is shown.
-- **Product reviews** by customers who bought the product, and **shareable build links**.
+- **Product reviews** by customers who bought the product.
+- **Following a suggestion through to a sale.** Insights shows how many suggested builds were loaded into the builder,
+  not how many were bought.
+- **Benchmark data for suggestions.** The rules judge a part by its price and specifications (threads, memory size,
+  graphics memory), not by measured speed in particular games or programs.
 - **A customer profile page** (change name, password and email) and password reset by email.
 - **Browser-driven end-to-end tests** in CI, alongside the API and component tests.
 - **Search that forgives typos.** Today a search matches any part of a name or SKU (kept fast by trigram indexes), so
