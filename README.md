@@ -384,11 +384,16 @@ refund is **approved or declined**. People who hold `inventory.manage` are email
 
 [docs/hosting-free.md](docs/hosting-free.md) is a step-by-step guide to a free public demo: the Vue site on **Netlify**, the
 API on **Render** (one Docker container: `backend/Dockerfile` runs nginx, PHP-FPM, the queue worker and the scheduler) and
-the database on **Neon**. Netlify forwards `/api`, `/sanctum` and `/storage` to the API (`netlify.toml`), so the browser sees
+the database and product photos on **Supabase** (Neon and Cloudflare R2 are documented alternatives). Netlify forwards `/api`, `/sanctum` and `/storage` to the API (`netlify.toml`), so the browser sees
 one address and the cookie login keeps working. On first start the container migrates the database and runs
 `php artisan shop:install`, which creates the roles, the compatibility rules and the first admin from `ADMIN_EMAIL` /
 `ADMIN_PASSWORD` (and, only into an empty shop and only if `SEED_DEMO_CATALOG=true`, the demo catalog). It is safe to run again.
-A free host's disk does not survive a restart, so the guide's part 12 moves product photos to a free bucket (`IMAGE_DISK=s3`).
+A free host's disk does not survive a restart, so product photos go to a free bucket (`IMAGE_DISK=s3`).
+
+The guide's main route keeps the database and the photos in one free **Supabase** project (no card). Supabase publishes a
+database's `public` schema as a web API, so there the shop lives in a schema of its own: `DB_SCHEMA=shop`, created by
+`php artisan shop:prepare-database` before the migrations. That command refuses to start the shop (exit code 2) if its tables
+would land in a `public` schema that hands new tables to web-API roles, so forgetting the setting cannot publish customer data.
 
 ## Tests and quality checks
 

@@ -25,9 +25,18 @@ php artisan config:cache
 php artisan event:cache
 php artisan view:cache
 
-# A free database may be asleep and take a few seconds to wake up, so try a few times before giving up.
+# A free database may be asleep and take a few seconds to wake up, so try a few times before giving up. A setting that was
+# REFUSED (exit code 2, e.g. tables that would be published on Supabase) is not retried: waiting will not fix it.
 attempt=1
-until php artisan migrate --force --no-interaction; do
+while true; do
+    prepared=0
+    php artisan shop:prepare-database --no-interaction || prepared=$?
+    [ "$prepared" -ne 2 ] || fail "the database settings were refused (see the message above)."
+
+    if [ "$prepared" -eq 0 ] && php artisan migrate --force --no-interaction; then
+        break
+    fi
+
     [ "$attempt" -lt 8 ] || fail "the database could not be reached or updated (see the message above)."
     echo "Database not ready (try $attempt of 8). Waiting..." >&2
     attempt=$((attempt + 1))

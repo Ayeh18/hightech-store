@@ -95,7 +95,9 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'public',
+            // The schema the shop's tables live in. Keep "public" except on Supabase, which publishes everything in "public"
+            // as a web API: there, use a schema of your own (DB_SCHEMA=shop). It is created for you on start-up.
+            'search_path' => env('DB_SCHEMA') ?: 'public', // a blank DB_SCHEMA means "public" too
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
