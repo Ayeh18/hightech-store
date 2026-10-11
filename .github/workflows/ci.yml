@@ -148,7 +148,8 @@ jobs:
       - name: Check what it serves
         run: |
           set -e
-          curl -fsS "http://localhost:8080/api/products?per_page=1" | grep -q '"sku"'          # the demo catalog is there
+          curl -fsS "http://localhost:8080/api/products?per_page=1" -o products.json
+          grep -q '"sku"' products.json                                                         # the demo catalog is there
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/.env)" = 403        # hidden files are not served
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/orders -H 'Accept: application/json')" = 401
           curl -sI http://localhost:8080/api/products | grep -qi '^x-content-type-options: nosniff'
@@ -156,7 +157,8 @@ jobs:
             echo "The X-Powered-By header is being sent." >&2
             exit 1
           fi
-          curl -fsS http://localhost:8080/docs/api.json | grep -q '"openapi"'                    # the API reference is served
+          curl -fsS http://localhost:8080/docs/api.json -o reference.json
+          grep -q '"openapi"' reference.json                                                    # the API reference is served
 
       - name: Show the container's log if anything failed
         if: failure()

@@ -25,12 +25,6 @@ php artisan config:cache
 php artisan event:cache
 php artisan view:cache
 
-# The API reference (/docs/api) is worked out by reading the code, which takes a second or two and a fair amount of memory.
-# Do it once now, so that opening the page later is instant. A real shop does not publish it, and it must never stop a start.
-if [ "${APP_ENV:-production}" != "production" ]; then
-    php artisan scramble:cache > /dev/null 2>&1 || echo "The API reference could not be prepared; /docs/api will build it on first use." >&2
-fi
-
 # A free database may be asleep and take a few seconds to wake up, so try a few times before giving up. A setting that was
 # REFUSED (exit code 2, e.g. tables that would be published on Supabase) is not retried: waiting will not fix it.
 attempt=1

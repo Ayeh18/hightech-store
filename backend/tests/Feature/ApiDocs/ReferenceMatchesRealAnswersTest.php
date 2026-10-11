@@ -5,6 +5,7 @@ use App\Models\Brand;
 use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\ProductImage;
+use Dedoc\Scramble\Generator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -295,4 +296,15 @@ it('lets anyone read the reference on a developer\'s machine or a demo, and nobo
 
     $this->get('/docs/api')->assertForbidden();
     $this->getJson('/docs/api.json')->assertForbidden();
+});
+
+it('serves the published copy on a server instead of working the reference out again', function () {
+    // If the code were analysed here, this stand-in would be called and the test would fail.
+    $this->mock(Generator::class)->shouldNotReceive('generate');
+    $this->app->detectEnvironment(fn () => 'staging');
+
+    $published = json_decode((string) file_get_contents(base_path('openapi.json')), true);
+
+    expect($this->getJson('/docs/api.json')->assertOk()->json())->toEqual($published);
+    $this->get('/docs/api')->assertOk()->assertSee('HighTech Store API');
 });

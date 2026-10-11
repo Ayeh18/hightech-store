@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Support\ApiDocs\MoneyToSchema;
+use App\Support\ApiDocs\PublishedReference;
+use Dedoc\Scramble\CacheableGenerator;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\Operation;
@@ -50,6 +52,12 @@ class ApiDocsServiceProvider extends ServiceProvider
         'Admin: reports' => ['The dashboard, sales reports and the audit log.', ['DashboardController', 'ReportController', 'AuditLogController']],
         'Admin: shop settings' => ['Coupons and the people who may use the admin area.', ['CouponController', 'UserController']],
     ];
+
+    public function register(): void
+    {
+        // Away from a developer's machine, show the published copy instead of working the reference out on every visit.
+        $this->app->bind(CacheableGenerator::class, PublishedReference::class);
+    }
 
     public function boot(): void
     {
