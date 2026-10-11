@@ -295,6 +295,38 @@ describe('pcBuilder store', () => {
     expect(store.purchasable).toBe(false) // but never treated as buyable until the server confirms
   })
 
+  // Why this matters: tests make a new store for every case but share one browser storage. A store left behind with
+  // a timer still running used to wake up during the NEXT test and write its old draft there, which made one page test
+  // fail about one run in six.
+  it('never touches the draft again once it has been thrown away: no leftover timer', async () => {
+    api.post.mockResolvedValue(serverAnswer(50000))
+    const old = await setup()
+    old.select('cpu', product(1, 50000)) // writes a draft and starts the 350 ms timer
+    old.$dispose()
+
+    localStorage.clear() // what the next user of this storage starts with
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(api.post).not.toHaveBeenCalled()
+    expect(localStorage.getItem('hightech.builder.draft.v1')).toBeNull()
+  })
+
+  it('never touches the draft again once it has been thrown away: no late answer', async () => {
+    let answer
+    api.post.mockReturnValue(new Promise((resolve) => (answer = resolve)))
+    const old = await setup()
+    old.select('cpu', product(1, 50000))
+    await vi.advanceTimersByTimeAsync(400) // the check is now on its way to the server
+    expect(api.post).toHaveBeenCalledTimes(1)
+    old.$dispose()
+
+    localStorage.clear()
+    answer(serverAnswer(50000)) // the server replies after the store is gone
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(localStorage.getItem('hightech.builder.draft.v1')).toBeNull()
+  })
+
   it('clears the verdict when the build becomes empty', async () => {
     const store = await setup()
     api.post.mockResolvedValue(serverAnswer(100, { compatibility: { status: 'compatible', issues: [], metrics: {} } }))

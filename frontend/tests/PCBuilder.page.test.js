@@ -87,6 +87,9 @@ function prepare() {
 
 const afterEachPage = () => {
   mounted.splice(0).forEach((wrapper) => wrapper.unmount())
+  // Picking a part starts a timer in the store. Throw the store away so that timer cannot fire during the next test
+  // and write this test's draft into the storage the next one reads.
+  usePcBuilderStore().$dispose()
   document.body.innerHTML = ''
 }
 

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, onScopeDispose, ref } from 'vue'
 import { api, parseApiError } from '@/lib/api'
 import { formatSen, sumSen } from '@/lib/money'
 
@@ -29,6 +29,15 @@ export const usePcBuilderStore = defineStore('pcBuilder', () => {
   let timer = null
   let controller = null
   let sequence = 0
+
+  // If this store is ever thrown away, nothing of it may act afterwards: a pending check or a late answer would write
+  // this store's draft over whatever uses the same browser storage next. (The app keeps one store for its whole life;
+  // tests create a new one for every case, which is where a leftover timer once caused a rare false failure.)
+  onScopeDispose(() => {
+    clearTimeout(timer)
+    controller?.abort()
+    sequence++ // an answer still on its way is now out of date, so validate() ignores it
+  })
 
   // ---------- derived state ----------
   const rows = computed(() => slots.value.map((slot) => ({ ...slot, selected: selection.value[slot.slot] ?? null })))
